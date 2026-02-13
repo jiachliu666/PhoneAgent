@@ -13,12 +13,29 @@ Example prompts:
 - Send a message to {Contact name}: my flight is DL 1715 and Call an Uber X to SFO
 - Open Control Center and enable the torch
 
-# How to run
+# RPC Bridge
 
-- Clone the repo
-- Open the Xcode project
-- Open PhoneAgentUITests.swift and run the testLoop function
-- Paste your OpenAI API key, and input your command (text or voice)
+You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `skills/iphone-rpc-control/SKILL.md` for a full workflow.
+
+RPC protocol (newline-delimited JSON) supports:
+
+- `get_tree`
+- `get_screen_image` returning `{ "screenshot_base64": <string>, "metadata": { "width": <number>, "height": <number> } }`
+- `get_context` returning `{ "tree": <string>, "screenshot_base64": <string>, "metadata": { "width": <number>, "height": <number> } }`
+- `tap` with `{ "x": <number>, "y": <number> }`
+- `tap_element` with `{ "coordinate": <string>, "count": <number>, "longPress": <bool> }` where `coordinate` looks like `{{x, y}, {w, h}}`
+- `enter_text` with `{ "coordinate": <string>, "text": <string> }` where `coordinate` looks like `{{x, y}, {w, h}}`
+- `scroll` with `{ "x": <number>, "y": <number>, "distanceX": <number>, "distanceY": <number> }`
+- `swipe` with `{ "x": <number>, "y": <number>, "direction": <string> }` where direction is `up|down|left|right`
+- `open_app` with `{ "bundle_identifier": <string> }`
+- `stop`
+
+Example JSON-RPC call/response:
+
+```json
+{"id":1,"method":"get_context","params":{}}
+{"id":1,"result":{"tree":"Application, ...","screenshot_base64":"iVBORw0KGgoAAA...","metadata":{"width":1290,"height":2796}}}
+```
 
 # Features
 
@@ -54,4 +71,3 @@ The host app communicates with the UI test via a TCP Server to trigger prompts.
 - Recommend running this in an isolated environment
 - The app contents are sent to OpenAI's API
 - The model can get things wrong sometimes
-

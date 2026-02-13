@@ -5,9 +5,23 @@
 //  Created by Rounak Jain on 5/30/25.
 //
 
+import Darwin
+import UserNotifications
 import XCTest
 
 final class PhoneAgent: XCTestCase {
+    private enum Mode: String {
+        case rpc
+        case loop
+    }
+
+    private var mode: Mode {
+        let raw = (ProcessInfo.processInfo.environment["PHONEAGENT_MODE"] ?? "rpc")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return Mode(rawValue: raw) ?? .rpc
+    }
+
     let appListener = AppStreamListener()
     var task: Task<Void, Never>?
 
@@ -15,19 +29,88 @@ final class PhoneAgent: XCTestCase {
     let notificationCenter = UNUserNotificationCenter.current()
     var lastRequest: OpenAIRequest?
     var app: XCUIApplication?
+    private var rpcServer: SimulatorRPCServer?
 
     override func setUpWithError() throws {
-        continueAfterFailure = true
-        appListener.start()
-        let app = XCUIApplication()
-        app.launch()
-        notificationCenter.requestNotificationPermission()
+        switch mode {
+        case .rpc:
+            continueAfterFailure = false
+            // Defer launching any app until the RPC server is ready so callers can optionally
+            // start directly in a specific target app (or skip the initial launch entirely).
+            app = nil
+        case .loop:
+            continueAfterFailure = true
+            appListener.start()
 
-        notificationCenter.delegate = self
+            let app = XCUIApplication()
+            app.launch()
+            self.app = app
+
+            notificationCenter.requestNotificationPermission()
+            notificationCenter.delegate = self
+        }
+    }
+
+    override func tearDownWithError() throws {
+        task?.cancel()
+        task = nil
+
+        api = nil
+        lastRequest = nil
+
+        rpcServer?.stop()
+        rpcServer = nil
+        app = nil
     }
 
     @MainActor
-    func testLoop() async throws {
+    func testMain() async throws {
+        switch mode {
+        case .rpc:
+            try await runRPCServer()
+        case .loop:
+            try await runLoop()
+        }
+    }
+
+    @MainActor
+    private func runRPCServer() async throws {
+        let stopExpectation = expectation(description: "stop rpc server")
+        let requestedPort = ProcessInfo.processInfo.environment["PHONEAGENT_RPC_PORT"]
+            .flatMap(UInt16.init) ?? 45678
+
+        let server = try SimulatorRPCServer(
+            requestedPort: requestedPort,
+            onReady: { port in
+                print("PHONEAGENT_RPC_PORT=\(port)")
+                fflush(stdout)
+            },
+            onStop: {
+                stopExpectation.fulfill()
+            },
+            commandHandler: { [weak self] method, params in
+                guard let self else { throw PhoneAgent.Error.serverShutDown }
+                return try await MainActor.run {
+                    try self.handleRPC(method: method, params: params)
+                }
+            }
+        )
+
+        rpcServer = server
+        server.start()
+
+        // Launch the host app so `get_tree` works immediately without a prior `open_app` call.
+        let app = XCUIApplication()
+        app.launch()
+        self.app = app
+
+        await fulfillment(of: [stopExpectation], timeout: 60 * 60 * 6)
+
+        server.stop()
+    }
+
+    @MainActor
+    func runLoop() async throws {
         for await prompt in appListener.messages {
             switch prompt {
             case .apiKey(let apiKey):
@@ -91,7 +174,7 @@ final class PhoneAgent: XCTestCase {
               "role": "assistant"
             }
           ],
-          "previous_response_id": "resp_683b49b0916c819b9db77fc68c0ed429016e90871fbf8114",
+          "previous_response_id": "resp_683b49b0916c819b9db77fc68c0ed429016e90871fbf8114"
         }
         """
         let response = try JSONDecoder.shared.decode(Response.self, from: .init(rawResponse.utf8))
