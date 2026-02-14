@@ -17,6 +17,8 @@ Example prompts:
 
 You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `skills/iphone-rpc-control/SKILL.md` for a full workflow.
 
+Auth: all RPC requests must include a per-run token. Provide `PHONEAGENT_RPC_TOKEN` when starting the test runner, and then send it as `params.token` with every request.
+
 RPC protocol (newline-delimited JSON) supports:
 
 - `get_tree`
@@ -33,7 +35,7 @@ RPC protocol (newline-delimited JSON) supports:
 Example JSON-RPC call/response:
 
 ```json
-{"id":1,"method":"get_context","params":{}}
+{"id":1,"method":"get_context","params":{"token":"<token>"}}
 {"id":1,"result":{"tree":"Application, ...","screenshot_base64":"iVBORw0KGgoAAA...","metadata":{"width":1290,"height":2796}}}
 ```
 

@@ -17,17 +17,17 @@ xcrun xctrace list devices
 
 2. Start the test-hosted RPC server on a chosen port.
 
+Preferred (reliable env injection via `.xctestrun`):
+
 ```bash
-xcodebuild test \
-  -project PhoneAgent.xcodeproj \
-  -scheme PhoneAgent \
-  -destination 'id=<DEVICE_UDID>' \
-  -only-testing:PhoneAgentUITests/PhoneAgent/testMain \
-  PHONEAGENT_MODE=rpc \
-  PHONEAGENT_RPC_PORT=45678
+TOKEN="$(uuidgen | tr -d '-')"
+./scripts/start_rpc_bridge.sh \
+  --udid '<DEVICE_UDID>' \
+  --token "$TOKEN" \
+  --port 45678
 ```
 
-3. Keep this `xcodebuild test` process running. It is the bridge.
+3. Keep this `xcodebuild ...` process running. It is the bridge.
 4. Wait for `PHONEAGENT_RPC_PORT=<port>` in logs before sending RPC calls.
 5. Confirm socket readiness before first RPC:
 
@@ -58,14 +58,14 @@ xcrun devicectl list devices
 Send one newline-delimited JSON request at a time:
 
 ```bash
-printf '%s\n' '{"id":1,"method":"get_tree","params":{}}' \
+printf '%s\n' '{"id":1,"method":"get_tree","params":{"token":"'"$TOKEN"'"}}' \
   | nc -w 4 <HOST> <PORT>
 ```
 
 Inspect tree output:
 
 ```bash
-printf '%s\n' '{"id":2,"method":"get_tree","params":{}}' \
+printf '%s\n' '{"id":2,"method":"get_tree","params":{"token":"'"$TOKEN"'"}}' \
   | nc -w 4 <HOST> <PORT> \
   | jq -r '.result.tree'
 ```
@@ -104,7 +104,7 @@ All success responses look like:
 
 Example:
 ```json
-{"id":1,"method":"get_tree","params":{}}
+{"id":1,"method":"get_tree","params":{"token":"<token>"}}
 ```
 
 ### `get_screen_image`
@@ -115,7 +115,7 @@ Example:
 
 Example:
 ```json
-{"id":2,"method":"get_screen_image","params":{}}
+{"id":2,"method":"get_screen_image","params":{"token":"<token>"}}
 ```
 
 ### `get_context`
@@ -126,7 +126,7 @@ Example:
 
 Example:
 ```json
-{"id":3,"method":"get_context","params":{}}
+{"id":3,"method":"get_context","params":{"token":"<token>"}}
 ```
 
 ### `open_app`
@@ -137,7 +137,7 @@ Example:
 
 Example:
 ```json
-{"id":4,"method":"open_app","params":{"bundle_identifier":"com.apple.Preferences"}}
+{"id":4,"method":"open_app","params":{"token":"<token>","bundle_identifier":"com.apple.Preferences"}}
 ```
 
 ### `tap`
@@ -148,7 +148,7 @@ Example:
 
 Example:
 ```json
-{"id":5,"method":"tap","params":{"x":120,"y":300}}
+{"id":5,"method":"tap","params":{"token":"<token>","x":120,"y":300}}
 ```
 
 ### `tap_element`
@@ -162,7 +162,7 @@ Example:
 
 Example:
 ```json
-{"id":6,"method":"tap_element","params":{"coordinate":"{{20.0, 165.0}, {390.0, 90.0}}","count":1,"longPress":false}}
+{"id":6,"method":"tap_element","params":{"token":"<token>","coordinate":"{{20.0, 165.0}, {390.0, 90.0}}","count":1,"longPress":false}}
 ```
 
 ### `enter_text`
@@ -175,7 +175,7 @@ Example:
 
 Example:
 ```json
-{"id":7,"method":"enter_text","params":{"coordinate":"{{33.0, 861.0}, {364.0, 38.0}}","text":"hello"}}
+{"id":7,"method":"enter_text","params":{"token":"<token>","coordinate":"{{33.0, 861.0}, {364.0, 38.0}}","text":"hello"}}
 ```
 
 ### `scroll`
@@ -186,7 +186,7 @@ Example:
 
 Example:
 ```json
-{"id":8,"method":"scroll","params":{"x":215,"y":760,"distanceX":0,"distanceY":-460}}
+{"id":8,"method":"scroll","params":{"token":"<token>","x":215,"y":760,"distanceX":0,"distanceY":-460}}
 ```
 
 ### `swipe`
@@ -197,7 +197,7 @@ Example:
 
 Example:
 ```json
-{"id":9,"method":"swipe","params":{"x":215,"y":760,"direction":"up"}}
+{"id":9,"method":"swipe","params":{"token":"<token>","x":215,"y":760,"direction":"up"}}
 ```
 
 ### `stop`
@@ -208,7 +208,7 @@ Example:
 
 Example:
 ```json
-{"id":10,"method":"stop","params":{}}
+{"id":10,"method":"stop","params":{"token":"<token>"}}
 ```
 
 ## iOS app bundle IDs

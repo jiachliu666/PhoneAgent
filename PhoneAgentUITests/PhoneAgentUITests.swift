@@ -6,6 +6,7 @@
 //
 
 import Darwin
+import Foundation
 import UserNotifications
 import XCTest
 
@@ -78,9 +79,11 @@ final class PhoneAgent: XCTestCase {
         let stopExpectation = expectation(description: "stop rpc server")
         let requestedPort = ProcessInfo.processInfo.environment["PHONEAGENT_RPC_PORT"]
             .flatMap(UInt16.init) ?? 45678
+        let token = try resolveRPCToken()
 
         let server = try SimulatorRPCServer(
             requestedPort: requestedPort,
+            expectedToken: token,
             onReady: { port in
                 print("PHONEAGENT_RPC_PORT=\(port)")
                 fflush(stdout)
@@ -107,6 +110,19 @@ final class PhoneAgent: XCTestCase {
         await fulfillment(of: [stopExpectation], timeout: 60 * 60 * 6)
 
         server.stop()
+    }
+
+    private func resolveRPCToken() throws -> String {
+        let raw = (ProcessInfo.processInfo.environment["PHONEAGENT_RPC_TOKEN"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else {
+            throw NSError(
+                domain: "PhoneAgent",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Missing required env var PHONEAGENT_RPC_TOKEN"]
+            )
+        }
+        return raw
     }
 
     @MainActor
