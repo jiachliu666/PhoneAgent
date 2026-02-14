@@ -29,7 +29,12 @@ class AppStreamListener {
                 tempContinuation = continuation
             }
             self.continuation = tempContinuation
-            listener = try NWListener(using: .tcp, on: port)
+            // This channel is strictly app<->test on the same device/simulator.
+            // Bind to loopback so we don't expose the port to the LAN.
+            let parameters = NWParameters.tcp
+            parameters.requiredInterfaceType = .loopback
+            parameters.prohibitedInterfaceTypes = [.wifi, .wiredEthernet, .cellular]
+            listener = try NWListener(using: parameters, on: port)
         } catch {
             fatalError("Failed to create listener: \(error)")
         }
@@ -41,6 +46,10 @@ class AppStreamListener {
         }
 
         listener.newConnectionHandler = { [weak self] (newConnection) in
+            guard Self.isLoopbackConnection(newConnection.endpoint) else {
+                newConnection.cancel()
+                return
+            }
             self?.connections.append(newConnection)
             self?.setupReceive(on: newConnection)
             newConnection.start(queue: .main)
@@ -70,6 +79,22 @@ class AppStreamListener {
             } else {
                 self?.setupReceive(on: connection)
             }
+        }
+    }
+}
+
+private extension AppStreamListener {
+    static func isLoopbackConnection(_ endpoint: NWEndpoint) -> Bool {
+        guard case .hostPort(let host, _) = endpoint else { return false }
+        switch host {
+        case .ipv4(let addr):
+            return addr == IPv4Address.loopback
+        case .ipv6(let addr):
+            return addr == IPv6Address.loopback
+        case .name(let name, _):
+            return name == "localhost"
+        @unknown default:
+            return false
         }
     }
 }

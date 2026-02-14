@@ -21,62 +21,73 @@ Preferred (reliable env injection via `.xctestrun`):
 
 ```bash
 TOKEN="$(uuidgen | tr -d '-')"
-./scripts/start_rpc_bridge.sh \
+./scripts/start_rpc_bridge_local.sh \
   --udid '<DEVICE_UDID>' \
   --token "$TOKEN" \
   --port 45678
 ```
+
+Notes:
+- `start_rpc_bridge_local.sh` starts a localhost-only forwarder.
+- On Xcode "Connect via network", it uses the CoreDevice tunnel automatically (no extra deps).
+- For USB fallback forwarding, install `pymobiledevice3` into a local venv:
+  `python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip && ./.venv/bin/python -m pip install pymobiledevice3`
 
 3. Keep this `xcodebuild ...` process running. It is the bridge.
 4. Wait for `PHONEAGENT_RPC_PORT=<port>` in logs before sending RPC calls.
 5. Confirm socket readiness before first RPC:
 
 ```bash
-python3 - <<'PY'
-import socket
-s = socket.create_connection(("127.0.0.1", 45678), timeout=3)
-s.close()
-print("rpc-ready")
-PY
+PHONEAGENT_RPC_TOKEN="$TOKEN" ./scripts/rpc.py get-tree >/dev/null && echo rpc-ready
 ```
 
 ## Resolve host and port
 
-1. For physical iPhone, resolve hostname:
+1. For physical iPhone, find the device UDID:
 
 ```bash
 xcrun devicectl list devices
 ```
 
-2. Prefer `<udid>.coredevice.local` or `<name>.coredevice.local` as the RPC host.
-3. Use the port printed by the test runner.
-4. On simulator, prefer `127.0.0.1`.
-5. On physical devices, use `*.coredevice.local`.
+2. Use the port printed by the test runner.
+3. Always use `127.0.0.1` as the RPC host.
+
+Notes:
+- The RPC server rejects direct LAN peers; use the localhost forwarder.
+- `start_rpc_bridge_local.sh` sets up a localhost-only forward for physical devices.
+- If you need to forward manually, run:
+  `python3 ./scripts/forward_rpc_localhost.py --udid <UDID> --local-port <PORT> --device-port <PORT>`
 
 ## Send RPC calls
 
-Send one newline-delimited JSON request at a time:
+Use the helper CLI:
 
 ```bash
-printf '%s\n' '{"id":1,"method":"get_tree","params":{"token":"'"$TOKEN"'"}}' \
-  | nc -w 4 <HOST> <PORT>
-```
+# The helper reads token from PHONEAGENT_RPC_TOKEN (or TOKEN).
+export PHONEAGENT_RPC_TOKEN="$TOKEN"
 
-Inspect tree output:
+./scripts/rpc.py open-app com.apple.Preferences
+./scripts/rpc.py get-tree | head
 
-```bash
-printf '%s\n' '{"id":2,"method":"get_tree","params":{"token":"'"$TOKEN"'"}}' \
-  | nc -w 4 <HOST> <PORT> \
-  | jq -r '.result.tree'
+# Use coordinates copied from the tree (XCUI frame string).
+./scripts/rpc.py enter-text \
+  --coordinate '{{33.0, 861.0}, {364.0, 38.0}}' \
+  --text 'Display'
+
+./scripts/rpc.py tap-element \
+  --coordinate '{{37.7, 969.7}, {199.7, 29.0}}'
 ```
 
 ## Core operating loop
 
 1. Call `get_tree`.
 2. Identify the best target element in the tree (label/identifier) and copy its frame coordinate string.
-3. Prefer coordinate-based actions (`tap_element` / `enter_text`) to match the non-skill agent behavior.
+3. Prefer coordinate-based actions (`tap_element` / `enter_text`).
 4. Use the returned `tree` from the action response to verify the UI changed as expected.
 5. Repeat until complete.
+6. When the task is complete, always capture a screenshot for the user:
+   - Prefer `get_context` and write `result.screenshot_base64` to a PNG (or use `./scripts/rpc.py get-screen-image --png-out <path>`).
+   - Include the PNG path in your final message so the user can open it.
 
 Use `swipe` to reveal off-screen content, then use the returned `tree` (or call `get_tree` if needed).
 Use one request at a time per server. Do not fire concurrent batches.

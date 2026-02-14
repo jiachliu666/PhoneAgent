@@ -19,6 +19,19 @@ You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). S
 
 Auth: all RPC requests must include a per-run token. Provide `PHONEAGENT_RPC_TOKEN` when starting the test runner, and then send it as `params.token` with every request.
 
+Helper CLI: use `./scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
+
+```bash
+export PHONEAGENT_RPC_TOKEN="..."
+./scripts/rpc.py open-app com.apple.Preferences
+./scripts/rpc.py get-tree | head
+```
+
+Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
+
+- Simulator: connect to `127.0.0.1:<port>`
+- Physical iPhone (USB or Xcode "Connect via network"): run `./scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:<port>` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+
 RPC protocol (newline-delimited JSON) supports:
 
 - `get_tree`

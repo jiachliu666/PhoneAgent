@@ -59,13 +59,42 @@ XCTESTRUN_PATH=""
 
 echo "Derived data: $DERIVED_DATA" >&2
 
-xcodebuild build-for-testing \
-  -project "$ROOT_DIR/PhoneAgent.xcodeproj" \
-  -scheme "PhoneAgent" \
-  -destination "id=$UDID" \
-  -derivedDataPath "$DERIVED_DATA" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO
+is_simulator_udid() {
+  python3 - "$UDID" <<'PY'
+import json
+import subprocess
+import sys
+
+udid = sys.argv[1].lower()
+raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "-j"])
+data = json.loads(raw)
+for _, devices in (data.get("devices") or {}).items():
+    for d in devices or []:
+        if str(d.get("udid", "")).lower() == udid:
+            print("simulator")
+            raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+XCODEBUILD_CODESIGN_ARGS=()
+if is_simulator_udid >/dev/null 2>&1; then
+  # Simulator builds don't need signing; disabling it avoids requiring a configured signing identity.
+  XCODEBUILD_CODESIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
+fi
+
+XCODEBUILD_ARGS=(
+  xcodebuild
+  build-for-testing
+  -project "$ROOT_DIR/PhoneAgent.xcodeproj"
+  -scheme "PhoneAgent"
+  -destination "id=$UDID"
+  -derivedDataPath "$DERIVED_DATA"
+)
+if ((${#XCODEBUILD_CODESIGN_ARGS[@]})); then
+  XCODEBUILD_ARGS+=("${XCODEBUILD_CODESIGN_ARGS[@]}")
+fi
+"${XCODEBUILD_ARGS[@]}"
 
 XCTESTRUN_PATH="$(ls -1 "$DERIVED_DATA/Build/Products/"*.xctestrun | head -n 1)"
 if [[ -z "$XCTESTRUN_PATH" ]]; then

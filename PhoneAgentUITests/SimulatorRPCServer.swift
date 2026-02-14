@@ -20,6 +20,13 @@ final class SimulatorRPCServer {
         commandHandler: @escaping CommandHandler
     ) throws {
         let port: NWEndpoint.Port = requestedPort == 0 ? .any : NWEndpoint.Port(rawValue: requestedPort) ?? .any
+        // Do not expose the RPC server on LAN interfaces. The intended access patterns are:
+        // - Simulator: connect via localhost.
+        // - Physical device: connect via a paired tunnel/port-forward (CoreDevice tunnel or usbmux).
+        //
+        // We intentionally *do not* require a specific interface type here because the CoreDevice
+        // tunnel can present as Wi-Fi-backed. Instead, we reject connections in newConnectionHandler
+        // unless the peer address is loopback (simulator) or an IPv6 ULA (CoreDevice tunnel).
         self.listener = try NWListener(using: .tcp, on: port)
         self.expectedToken = expectedToken
         self.onReady = onReady
@@ -172,12 +179,25 @@ final class SimulatorRPCServer {
     }
 
     private static func isLocalConnection(_ endpoint: NWEndpoint) -> Bool {
-        // Allow host->device RPC for both simulator and physical-device workflows.
-        // Security is currently based on the pairing/tunnel boundary.
-        guard case .hostPort = endpoint else {
+        // Defense-in-depth: only accept:
+        // - loopback peers (simulator / same-host workflows)
+        // - IPv6 Unique Local Addresses (CoreDevice tunnel on paired physical devices)
+        guard case .hostPort(let host, _) = endpoint else { return false }
+
+        switch host {
+        case .ipv4(let addr):
+            return addr == IPv4Address.loopback
+        case .ipv6(let addr):
+            if addr == IPv6Address.loopback {
+                return true
+            }
+            // ULA = fc00::/7 (addresses starting with 0xfc or 0xfd)
+            return addr.rawValue.first == 0xFC || addr.rawValue.first == 0xFD
+        case .name(let name, _):
+            return name == "localhost"
+        @unknown default:
             return false
         }
-        return true
     }
 }
 

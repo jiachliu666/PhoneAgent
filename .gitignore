@@ -6,6 +6,10 @@
 xcuserdata/
 .DS_Store
 
+## Python
+__pycache__/
+*.pyc
+
 ## Obj-C/Swift specific
 *.hmap
 
