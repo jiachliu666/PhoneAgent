@@ -5,9 +5,9 @@ PhoneAgent RPC client.
 This talks to the PhoneAgent UI-test JSON-RPC bridge (newline-delimited JSON over TCP).
 
 Typical usage:
-  ./scripts/rpc.py get-tree
-  ./scripts/rpc.py open-app com.apple.Preferences
-  ./scripts/rpc.py enter-text --coordinate '{{33.0, 861.0}, {364.0, 38.0}}' --text 'Display'
+  ./.agents/skills/phoneagent/scripts/rpc.py get-tree
+  ./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
+  ./.agents/skills/phoneagent/scripts/rpc.py enter-text --coordinate '{{33.0, 861.0}, {364.0, 38.0}}' --text 'Display'
 """
 
 from __future__ import annotations

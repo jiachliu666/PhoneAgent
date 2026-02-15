@@ -14,7 +14,7 @@ What this does:
 
 Requirements (physical device):
   - python3
-  - (USB only) pip package: pymobiledevice3 (install into ./.venv)
+  - (USB only) pip package: pymobiledevice3 (install into repo-root ./.venv)
 USAGE
 }
 
@@ -40,11 +40,23 @@ if [[ -z "$UDID" ]]; then
   exit 2
 fi
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  # Fallback for when git isn't available: this file lives at
+  # <repo>/.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh.
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+fi
+
+if [[ ! -d "$REPO_ROOT/PhoneAgent.xcodeproj" ]]; then
+  echo "Could not locate PhoneAgent.xcodeproj under: $REPO_ROOT" >&2
+  echo "Run this script from a PhoneAgent repo checkout." >&2
+  exit 1
+fi
 
 PYTHON="python3"
-if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
-  PYTHON="$ROOT_DIR/.venv/bin/python"
+if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+  PYTHON="$REPO_ROOT/.venv/bin/python"
 fi
 
 is_simulator_udid() {
@@ -83,7 +95,7 @@ if ((IS_SIMULATOR)); then
   echo "Simulator detected; use RPC host 127.0.0.1:$RPC_PORT (wait for PHONEAGENT_RPC_READY ... in logs)" >&2
 else
   echo "Physical device detected; starting localhost forward: 127.0.0.1:$RPC_PORT -> device:$RPC_PORT" >&2
-  "$PYTHON" "$ROOT_DIR/scripts/forward_rpc_localhost.py" \
+  "$PYTHON" "$SCRIPT_DIR/forward_rpc_localhost.py" \
     --udid "$UDID" &
   FORWARD_PID="$!"
 
@@ -104,7 +116,7 @@ fi
 XCODEBUILD_ARGS=(
   xcodebuild
   test
-  -project "$ROOT_DIR/PhoneAgent.xcodeproj"
+  -project "$REPO_ROOT/PhoneAgent.xcodeproj"
   -scheme "PhoneAgent"
   -destination "id=$UDID"
   -only-testing:PhoneAgentUITests/PhoneAgent/testMain

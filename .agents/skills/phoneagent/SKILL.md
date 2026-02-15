@@ -7,6 +7,12 @@ description: Control a connected iPhone or iOS simulator from macOS through Phon
 
 Use this workflow to drive iOS UI through the PhoneAgent test bridge.
 
+All shell commands below assume you are in the repo root:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+```
+
 ## Start the RPC bridge
 
 1. Find available devices.
@@ -18,7 +24,7 @@ xcrun xctrace list devices
 2. Start the test-hosted RPC server (listens on port `45678`).
 
 ```bash
-./scripts/start_rpc_bridge_local.sh \
+./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh \
   --udid '<DEVICE_UDID>'
 ```
 
@@ -33,7 +39,7 @@ Notes:
 5. Confirm socket readiness before first RPC:
 
 ```bash
-./scripts/rpc.py get-tree >/dev/null && echo rpc-ready
+./.agents/skills/phoneagent/scripts/rpc.py get-tree >/dev/null && echo rpc-ready
 ```
 
 ## Resolve host and port
@@ -50,22 +56,22 @@ Notes:
 - The RPC server rejects direct LAN peers; use the localhost forwarder.
 - `start_rpc_bridge_local.sh` sets up a localhost-only forward for physical devices.
 - If you need to forward manually, run:
-  `python3 ./scripts/forward_rpc_localhost.py --udid <UDID>` (binds `127.0.0.1:45678`)
+  `python3 ./.agents/skills/phoneagent/scripts/forward_rpc_localhost.py --udid <UDID>` (binds `127.0.0.1:45678`)
 
 ## Send RPC calls
 
 Use the helper CLI:
 
 ```bash
-./scripts/rpc.py open-app com.apple.Preferences
-./scripts/rpc.py get-tree | head
+./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
+./.agents/skills/phoneagent/scripts/rpc.py get-tree | head
 
 # Use coordinates copied from the tree (XCUI frame string).
-./scripts/rpc.py enter-text \
+./.agents/skills/phoneagent/scripts/rpc.py enter-text \
   --coordinate '{{33.0, 861.0}, {364.0, 38.0}}' \
   --text 'Display'
 
-./scripts/rpc.py tap-element \
+./.agents/skills/phoneagent/scripts/rpc.py tap-element \
   --coordinate '{{37.7, 969.7}, {199.7, 29.0}}'
 ```
 
@@ -77,7 +83,7 @@ Use the helper CLI:
 4. Use the returned `tree` from the action response to verify the UI changed as expected.
 5. Repeat until complete.
 6. When the task is complete, always capture a screenshot for the user:
-   - Prefer `get_context` and write `result.screenshot_base64` to a PNG (or use `./scripts/rpc.py get-screen-image --png-out <path>`).
+   - Prefer `get_context` and write `result.screenshot_base64` to a PNG (or use `./.agents/skills/phoneagent/scripts/rpc.py get-screen-image --png-out <path>`).
    - Include the PNG path in your final message so the user can open it.
 
 Use `swipe` to reveal off-screen content, then use the returned `tree` (or call `get_tree` if needed).

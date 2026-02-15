@@ -15,21 +15,21 @@ Example prompts:
 
 # RPC Bridge
 
-You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `skills/phoneagent/SKILL.md` for a full workflow.
+You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `.agents/skills/phoneagent/SKILL.md` for a full workflow.
 
-Helper CLI: use `./scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
+Helper CLI: use `./.agents/skills/phoneagent/scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
 
 ```bash
-./scripts/rpc.py open-app com.apple.Preferences
-./scripts/rpc.py get-tree | head
+./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
+./.agents/skills/phoneagent/scripts/rpc.py get-tree | head
 ```
 
 Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
 
 - Simulator: connect to `127.0.0.1:45678`
-- Physical iPhone (USB or Xcode "Connect via network"): run `./scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+- Physical iPhone (USB or Xcode "Connect via network"): run `./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
 
-For the full RPC method reference and recommended operating loop, see `skills/phoneagent/SKILL.md`.
+For the full RPC method reference and recommended operating loop, see `.agents/skills/phoneagent/SKILL.md`.
 
 # Features
 
