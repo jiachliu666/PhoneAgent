@@ -163,10 +163,11 @@ extension PhoneAgent {
             ], false)
         case .setOpenAIAPIKey:
             let apiKey = try stringValue(for: "api_key", in: parameters)
-            guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
                 throw Error.invalidParams("api_key is required")
             }
-            api = OpenAIService(with: apiKey)
+            api = OpenAIService(with: trimmed)
             return (["ok": true], false)
         case .submitPrompt:
             let prompt = try stringValue(for: "prompt", in: parameters)

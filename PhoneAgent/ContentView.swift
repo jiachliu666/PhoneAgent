@@ -28,7 +28,8 @@ struct ContentView: View {
             PromptView(rpcClient: rpcClient, deleteKey: deleteKey)
                 .onAppear {
                     Task {
-                        await rpcClient.setOpenAIAPIKey(key)
+                        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                        await rpcClient.setOpenAIAPIKey(trimmed)
                     }
                 }
         }

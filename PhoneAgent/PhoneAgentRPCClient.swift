@@ -50,7 +50,8 @@ public actor PhoneAgentRPCClient {
     // MARK: - High-level calls used by the app UI
 
     public func setOpenAIAPIKey(_ apiKey: String) async {
-        _ = await callIgnoringErrors(method: "set_api_key", parameters: ["api_key": apiKey])
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = await callIgnoringErrors(method: "set_api_key", parameters: ["api_key": trimmed])
     }
 
     public func submitPrompt(_ prompt: String) async {

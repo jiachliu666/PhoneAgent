@@ -70,7 +70,7 @@ struct EnterAPIKeyView: View {
 
             Button(action: {
                 fieldFocused = false            // dismiss keyboard
-                onSave(apiKey)                  // let caller handle persistence
+                onSave(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))  // let caller handle persistence
                 withAnimation(.easeInOut) { saved = true }   // flash success banner
                 Task {
                     try await Task.sleep(for: .seconds(1))
