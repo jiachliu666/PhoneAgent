@@ -1,9 +1,9 @@
 ---
-name: iphone-rpc-control
+name: phoneagent
 description: Control a connected iPhone or iOS simulator from macOS through PhoneAgent's UI-test JSON-RPC bridge. Use when users ask to automate iOS UI actions, inspect accessibility trees, toggle Settings switches, navigate apps, or capture screenshots by sending RPC methods like get_tree, get_screen_image, get_context, tap_element, enter_text, scroll, swipe, and open_app.
 ---
 
-# iPhone RPC Control
+# PhoneAgent
 
 Use this workflow to drive iOS UI through the PhoneAgent test bridge.
 
