@@ -21,7 +21,7 @@ import sys
 import tempfile
 import threading
 import select
-from typing import Iterable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 RPC_PORT = 45678
@@ -29,11 +29,6 @@ RPC_PORT = 45678
 
 def eprint(*args: object) -> None:
     print(*args, file=sys.stderr, flush=True)
-
-
-def die(msg: str, code: int = 2) -> None:
-    eprint(msg)
-    raise SystemExit(code)
 
 
 def _devicectl_potential_hostnames(udid: str, timeout: float = 8.0) -> List[str]:

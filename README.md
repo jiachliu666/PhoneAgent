@@ -29,27 +29,7 @@ Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/p
 - Simulator: connect to `127.0.0.1:45678`
 - Physical iPhone (USB or Xcode "Connect via network"): run `./scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
 
-RPC protocol (newline-delimited JSON) supports:
-
-- `get_tree`
-- `get_screen_image` returning `{ "screenshot_base64": <string>, "metadata": { "width": <number>, "height": <number> } }`
-- `get_context` returning `{ "tree": <string>, "screenshot_base64": <string>, "metadata": { "width": <number>, "height": <number> } }`
-- `tap` with `{ "x": <number>, "y": <number> }`
-- `tap_element` with `{ "coordinate": <string>, "count": <number>, "longPress": <bool> }` where `coordinate` looks like `{{x, y}, {w, h}}`
-- `enter_text` with `{ "coordinate": <string>, "text": <string> }` where `coordinate` looks like `{{x, y}, {w, h}}`
-- `scroll` with `{ "x": <number>, "y": <number>, "distanceX": <number>, "distanceY": <number> }`
-- `swipe` with `{ "x": <number>, "y": <number>, "direction": <string> }` where direction is `up|down|left|right`
-- `open_app` with `{ "bundle_identifier": <string> }`
-- `set_api_key` with `{ "api_key": <string> }` (used by the host app UI)
-- `submit_prompt` with `{ "prompt": <string> }` (used by the host app UI)
-- `stop`
-
-Example JSON-RPC call/response:
-
-```json
-{"id":1,"method":"get_context","params":{}}
-{"id":1,"result":{"tree":"Application, ...","screenshot_base64":"iVBORw0KGgoAAA...","metadata":{"width":1290,"height":2796}}}
-```
+For the full RPC method reference and recommended operating loop, see `skills/iphone-rpc-control/SKILL.md`.
 
 # Features
 

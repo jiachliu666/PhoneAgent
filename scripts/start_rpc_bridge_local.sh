@@ -73,7 +73,13 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Cache simulator check; calling it twice is slow and hits xcrun each time.
+IS_SIMULATOR=0
 if is_simulator_udid >/dev/null 2>&1; then
+  IS_SIMULATOR=1
+fi
+
+if ((IS_SIMULATOR)); then
   echo "Simulator detected; use RPC host 127.0.0.1:$RPC_PORT (wait for PHONEAGENT_RPC_READY ... in logs)" >&2
 else
   echo "Physical device detected; starting localhost forward: 127.0.0.1:$RPC_PORT -> device:$RPC_PORT" >&2
@@ -90,7 +96,7 @@ fi
 
 # Start the test-hosted JSON-RPC server via a single UI-test entrypoint.
 XCODEBUILD_CODESIGN_ARGS=()
-if is_simulator_udid >/dev/null 2>&1; then
+if ((IS_SIMULATOR)); then
   # Simulator builds don't need signing; disabling it avoids requiring a configured signing identity.
   XCODEBUILD_CODESIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
 fi

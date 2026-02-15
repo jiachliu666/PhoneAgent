@@ -21,9 +21,9 @@ final class PhoneAgent: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        // Defer launching any app until the RPC server is ready so callers can optionally
-        // start directly in a specific target app (or skip the initial launch entirely).
-        app = nil
+        let app = XCUIApplication()
+        app.launch()
+        self.app = app
         // Needed for notification quick-reply handling when the app-driven agent flow is used.
         notificationCenter.delegate = self
     }
@@ -47,14 +47,12 @@ final class PhoneAgent: XCTestCase {
 
     @MainActor
     private func runRPCServer() async throws {
-        let readyExpectation = expectation(description: "rpc server ready")
         let stopExpectation = expectation(description: "stop rpc server")
 
         let server = try SimulatorRPCServer(
             onReady: { port in
                 print("PHONEAGENT_RPC_READY port=\(port)")
                 fflush(stdout)
-                readyExpectation.fulfill()
             },
             onStop: {
                 stopExpectation.fulfill()
@@ -69,13 +67,6 @@ final class PhoneAgent: XCTestCase {
 
         rpcServer = server
         server.start()
-
-        await fulfillment(of: [readyExpectation], timeout: 10.0)
-
-        // Launch the host app so `get_tree` works immediately without a prior `open_app` call.
-        let app = XCUIApplication()
-        app.launch()
-        self.app = app
 
         await fulfillment(of: [stopExpectation], timeout: 60 * 60 * 6)
 
