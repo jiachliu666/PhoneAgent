@@ -17,20 +17,17 @@ Example prompts:
 
 You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `skills/iphone-rpc-control/SKILL.md` for a full workflow.
 
-Auth: all RPC requests must include a per-run token. Provide `PHONEAGENT_RPC_TOKEN` when starting the test runner, and then send it as `params.token` with every request.
-
 Helper CLI: use `./scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
 
 ```bash
-export PHONEAGENT_RPC_TOKEN="..."
 ./scripts/rpc.py open-app com.apple.Preferences
 ./scripts/rpc.py get-tree | head
 ```
 
 Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
 
-- Simulator: connect to `127.0.0.1:<port>`
-- Physical iPhone (USB or Xcode "Connect via network"): run `./scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:<port>` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+- Simulator: connect to `127.0.0.1:45678`
+- Physical iPhone (USB or Xcode "Connect via network"): run `./scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
 
 RPC protocol (newline-delimited JSON) supports:
 
@@ -43,12 +40,14 @@ RPC protocol (newline-delimited JSON) supports:
 - `scroll` with `{ "x": <number>, "y": <number>, "distanceX": <number>, "distanceY": <number> }`
 - `swipe` with `{ "x": <number>, "y": <number>, "direction": <string> }` where direction is `up|down|left|right`
 - `open_app` with `{ "bundle_identifier": <string> }`
+- `set_api_key` with `{ "api_key": <string> }` (used by the host app UI)
+- `submit_prompt` with `{ "prompt": <string> }` (used by the host app UI)
 - `stop`
 
 Example JSON-RPC call/response:
 
 ```json
-{"id":1,"method":"get_context","params":{"token":"<token>"}}
+{"id":1,"method":"get_context","params":{}}
 {"id":1,"result":{"tree":"Application, ...","screenshot_base64":"iVBORw0KGgoAAA...","metadata":{"width":1290,"height":2796}}}
 ```
 
@@ -72,7 +71,7 @@ The agent is powered by OpenAI's gpt-4.1 model. It is surprisingly good at using
 - typing in a text field
 - opening an app
 
-The host app communicates with the UI test via a TCP Server to trigger prompts.
+The host app communicates with the UI test runner via the same newline-delimited JSON RPC bridge (loopback), sending `set_api_key` and `submit_prompt`.
 
 # Limitations
 - Keyboard input can be improved

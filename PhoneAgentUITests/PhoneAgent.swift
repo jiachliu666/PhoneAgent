@@ -82,7 +82,7 @@ extension PhoneAgent {
     }
 }
 
-// Mode 2: JSON-RPC command execution.
+// JSON-RPC command execution.
 extension PhoneAgent {
     private enum Method: String {
         case getTree = "get_tree"
@@ -94,11 +94,13 @@ extension PhoneAgent {
         case scroll = "scroll"
         case swipe = "swipe"
         case openApp = "open_app"
+        case setOpenAIAPIKey = "set_api_key"
+        case submitPrompt = "submit_prompt"
         case stop = "stop"
     }
 
     @MainActor
-    func handleRPC(method rawMethod: String, params: [String: Any]) throws -> (result: Any, shouldStop: Bool) {
+    func handleRPC(method rawMethod: String, parameters: [String: Any]) throws -> (result: Any, shouldStop: Bool) {
         guard let method = Method(rawValue: rawMethod) else {
             throw Error.invalidCommand(rawMethod)
         }
@@ -113,14 +115,14 @@ extension PhoneAgent {
             payload["tree"] = try accessibilityTree()
             return (payload, false)
         case .tap:
-            let x = try numberValue(for: "x", in: params)
-            let y = try numberValue(for: "y", in: params)
+            let x = try numberValue(for: "x", in: parameters)
+            let y = try numberValue(for: "y", in: parameters)
             try tap(x: x, y: y)
             return (["tree": try accessibilityTree()], false)
         case .tapElement:
-            let coordinate = try stringValue(for: "coordinate", in: params)
-            let count = params["count"] as? Int ?? 1
-            let longPress = params["longPress"] as? Bool ?? false
+            let coordinate = try stringValue(for: "coordinate", in: parameters)
+            let count = parameters["count"] as? Int ?? 1
+            let longPress = parameters["longPress"] as? Bool ?? false
             try tapElement(rect: coordinate, count: count, longPress: longPress)
             return ([
                 "coordinate": coordinate,
@@ -129,36 +131,69 @@ extension PhoneAgent {
                 "tree": try accessibilityTree()
             ], false)
         case .enterText:
-            let coordinate = try stringValue(for: "coordinate", in: params)
-            let text = try stringValue(for: "text", in: params)
+            let coordinate = try stringValue(for: "coordinate", in: parameters)
+            let text = try stringValue(for: "text", in: parameters)
             try enterText(rect: coordinate, text: text)
             return ([
                 "coordinate": coordinate,
                 "tree": try accessibilityTree()
             ], false)
         case .scroll:
-            let x = try numberValue(for: "x", in: params)
-            let y = try numberValue(for: "y", in: params)
-            let distanceX = try numberValue(for: "distanceX", in: params)
-            let distanceY = try numberValue(for: "distanceY", in: params)
+            let x = try numberValue(for: "x", in: parameters)
+            let y = try numberValue(for: "y", in: parameters)
+            let distanceX = try numberValue(for: "distanceX", in: parameters)
+            let distanceY = try numberValue(for: "distanceY", in: parameters)
             try scroll(x: x, y: y, distanceX: distanceX, distanceY: distanceY)
             return (["tree": try accessibilityTree()], false)
         case .swipe:
-            let x = try numberValue(for: "x", in: params)
-            let y = try numberValue(for: "y", in: params)
-            let directionText = try stringValue(for: "direction", in: params).lowercased()
+            let x = try numberValue(for: "x", in: parameters)
+            let y = try numberValue(for: "y", in: parameters)
+            let directionText = try stringValue(for: "direction", in: parameters).lowercased()
             guard let direction = SwipeDirection(rawValue: directionText) else {
                 throw Error.invalidParams("direction must be one of: up, down, left, right")
             }
             try swipe(x: x, y: y, direction: direction)
             return (["tree": try accessibilityTree()], false)
         case .openApp:
-            let bundleIdentifier = try stringValue(for: "bundle_identifier", in: params)
+            let bundleIdentifier = try stringValue(for: "bundle_identifier", in: parameters)
             try openApp(bundleIdentifier: bundleIdentifier)
             return ([
                 "bundle_identifier": bundleIdentifier,
                 "tree": try accessibilityTree()
             ], false)
+        case .setOpenAIAPIKey:
+            let apiKey = try stringValue(for: "api_key", in: parameters)
+            guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw Error.invalidParams("api_key is required")
+            }
+            api = OpenAIService(with: apiKey)
+            return (["ok": true], false)
+        case .submitPrompt:
+            let prompt = try stringValue(for: "prompt", in: parameters)
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                throw Error.invalidParams("prompt is required")
+            }
+            guard api != nil else {
+                throw Error.apiNotConfigured
+            }
+            guard task == nil else {
+                throw Error.invalidParams("Agent is already running")
+            }
+
+            // Only request notification permission when the in-app agent flow is used
+            // (so pure RPC automation doesn't get blocked by the system prompt).
+            notificationCenter.requestNotificationPermission()
+            task = Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer { self.task = nil }
+                do {
+                    try await self.submit(trimmed)
+                } catch {
+                    print("Error processing prompt: \(error)")
+                }
+            }
+            return (["started": true], false)
         case .stop:
             return ([:], true)
         }
@@ -247,8 +282,8 @@ extension PhoneAgent {
         }
     }
 
-    private func numberValue(for key: String, in params: [String: Any]) throws -> CGFloat {
-        guard let value = params[key] else {
+    private func numberValue(for key: String, in parameters: [String: Any]) throws -> CGFloat {
+        guard let value = parameters[key] else {
             throw Error.invalidParams("missing parameter '\(key)'")
         }
         if let number = value as? NSNumber {
@@ -260,8 +295,8 @@ extension PhoneAgent {
         throw Error.invalidParams("parameter '\(key)' must be a number")
     }
 
-    private func stringValue(for key: String, in params: [String: Any]) throws -> String {
-        guard let value = params[key] else {
+    private func stringValue(for key: String, in parameters: [String: Any]) throws -> String {
+        guard let value = parameters[key] else {
             throw Error.invalidParams("missing parameter '\(key)'")
         }
         guard let text = value as? String else {

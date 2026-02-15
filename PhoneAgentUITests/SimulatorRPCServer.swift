@@ -2,24 +2,23 @@ import Foundation
 import Network
 
 final class SimulatorRPCServer {
+    static let defaultPort: UInt16 = 45678
+
     typealias CommandHandler = (_ method: String, _ params: [String: Any]) async throws -> (result: Any, shouldStop: Bool)
 
     private let listener: NWListener
     private let onReady: (UInt16) -> Void
     private let onStop: () -> Void
     private let commandHandler: CommandHandler
-    private let expectedToken: String
     private var connections: [NWConnection] = []
     private let queue = DispatchQueue(label: "com.phoneagent.rpc")
 
     init(
-        requestedPort: UInt16,
-        expectedToken: String,
         onReady: @escaping (UInt16) -> Void,
         onStop: @escaping () -> Void,
         commandHandler: @escaping CommandHandler
     ) throws {
-        let port: NWEndpoint.Port = requestedPort == 0 ? .any : NWEndpoint.Port(rawValue: requestedPort) ?? .any
+        let port = NWEndpoint.Port(rawValue: Self.defaultPort)!
         // Do not expose the RPC server on LAN interfaces. The intended access patterns are:
         // - Simulator: connect via localhost.
         // - Physical device: connect via a paired tunnel/port-forward (CoreDevice tunnel or usbmux).
@@ -28,7 +27,6 @@ final class SimulatorRPCServer {
         // tunnel can present as Wi-Fi-backed. Instead, we reject connections in newConnectionHandler
         // unless the peer address is loopback (simulator) or an IPv6 ULA (CoreDevice tunnel).
         self.listener = try NWListener(using: .tcp, on: port)
-        self.expectedToken = expectedToken
         self.onReady = onReady
         self.onStop = onStop
         self.commandHandler = commandHandler
@@ -108,16 +106,6 @@ final class SimulatorRPCServer {
             do {
                 let request = try RPCRequest(data: line)
                 do {
-                    try self.authenticate(request)
-                } catch {
-                    let response: [String: Any] = [
-                        "id": request.id,
-                        "error": ["message": error.localizedDescription]
-                    ]
-                    self.sendResponse(response, on: connection)
-                    return
-                }
-                do {
                     let outcome = try await self.commandHandler(request.method, request.params)
                     let response: [String: Any] = [
                         "id": request.id,
@@ -142,15 +130,6 @@ final class SimulatorRPCServer {
                 ]
                 self.sendResponse(response, on: connection)
             }
-        }
-    }
-
-    private func authenticate(_ request: RPCRequest) throws {
-        guard request.token != nil else {
-            throw RPCServerError.missingToken
-        }
-        guard request.token == expectedToken else {
-            throw RPCServerError.invalidToken
         }
     }
 
@@ -203,8 +182,6 @@ final class SimulatorRPCServer {
 
 private enum RPCServerError: Swift.Error, LocalizedError {
     case invalidJSON
-    case missingToken
-    case invalidToken
     case missingMethod
     case invalidMethod
     case invalidParams
@@ -213,10 +190,6 @@ private enum RPCServerError: Swift.Error, LocalizedError {
         switch self {
         case .invalidJSON:
             "Invalid JSON payload"
-        case .missingToken:
-            "Missing 'token' (set PHONEAGENT_RPC_TOKEN and send token with each request)"
-        case .invalidToken:
-            "Invalid 'token'"
         case .missingMethod:
             "Missing 'method' field"
         case .invalidMethod:
@@ -229,7 +202,6 @@ private enum RPCServerError: Swift.Error, LocalizedError {
 
 private struct RPCRequest {
     let id: Any
-    let token: String?
     let method: String
     let params: [String: Any]
 
@@ -238,7 +210,6 @@ private struct RPCRequest {
             throw RPCServerError.invalidJSON
         }
         let objectParams = object["params"] as? [String: Any]
-        let token = (object["token"] as? String) ?? (objectParams?["token"] as? String)
         guard let methodValue = object["method"] else {
             throw RPCServerError.missingMethod
         }
@@ -250,10 +221,7 @@ private struct RPCRequest {
         }
 
         self.id = object["id"] ?? NSNull()
-        self.token = token
         self.method = method
-        var params = objectParams ?? [:]
-        params.removeValue(forKey: "token")
-        self.params = params
+        self.params = objectParams ?? [:]
     }
 }

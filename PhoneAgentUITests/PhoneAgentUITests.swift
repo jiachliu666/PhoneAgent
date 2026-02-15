@@ -11,19 +11,6 @@ import UserNotifications
 import XCTest
 
 final class PhoneAgent: XCTestCase {
-    private enum Mode: String {
-        case rpc
-        case loop
-    }
-
-    private var mode: Mode {
-        let raw = (ProcessInfo.processInfo.environment["PHONEAGENT_MODE"] ?? "rpc")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return Mode(rawValue: raw) ?? .rpc
-    }
-
-    let appListener = AppStreamListener()
     var task: Task<Void, Never>?
 
     var api: OpenAIService?
@@ -33,23 +20,12 @@ final class PhoneAgent: XCTestCase {
     private var rpcServer: SimulatorRPCServer?
 
     override func setUpWithError() throws {
-        switch mode {
-        case .rpc:
-            continueAfterFailure = false
-            // Defer launching any app until the RPC server is ready so callers can optionally
-            // start directly in a specific target app (or skip the initial launch entirely).
-            app = nil
-        case .loop:
-            continueAfterFailure = true
-            appListener.start()
-
-            let app = XCUIApplication()
-            app.launch()
-            self.app = app
-
-            notificationCenter.requestNotificationPermission()
-            notificationCenter.delegate = self
-        }
+        continueAfterFailure = false
+        // Defer launching any app until the RPC server is ready so callers can optionally
+        // start directly in a specific target app (or skip the initial launch entirely).
+        app = nil
+        // Needed for notification quick-reply handling when the app-driven agent flow is used.
+        notificationCenter.delegate = self
     }
 
     override func tearDownWithError() throws {
@@ -66,41 +42,35 @@ final class PhoneAgent: XCTestCase {
 
     @MainActor
     func testMain() async throws {
-        switch mode {
-        case .rpc:
-            try await runRPCServer()
-        case .loop:
-            try await runLoop()
-        }
+        try await runRPCServer()
     }
 
     @MainActor
     private func runRPCServer() async throws {
+        let readyExpectation = expectation(description: "rpc server ready")
         let stopExpectation = expectation(description: "stop rpc server")
-        let requestedPort = ProcessInfo.processInfo.environment["PHONEAGENT_RPC_PORT"]
-            .flatMap(UInt16.init) ?? 45678
-        let token = try resolveRPCToken()
 
         let server = try SimulatorRPCServer(
-            requestedPort: requestedPort,
-            expectedToken: token,
             onReady: { port in
-                print("PHONEAGENT_RPC_PORT=\(port)")
+                print("PHONEAGENT_RPC_READY port=\(port)")
                 fflush(stdout)
+                readyExpectation.fulfill()
             },
             onStop: {
                 stopExpectation.fulfill()
             },
-            commandHandler: { [weak self] method, params in
+            commandHandler: { [weak self] method, parameters in
                 guard let self else { throw PhoneAgent.Error.serverShutDown }
                 return try await MainActor.run {
-                    try self.handleRPC(method: method, params: params)
+                    try self.handleRPC(method: method, parameters: parameters)
                 }
             }
         )
 
         rpcServer = server
         server.start()
+
+        await fulfillment(of: [readyExpectation], timeout: 10.0)
 
         // Launch the host app so `get_tree` works immediately without a prior `open_app` call.
         let app = XCUIApplication()
@@ -110,38 +80,6 @@ final class PhoneAgent: XCTestCase {
         await fulfillment(of: [stopExpectation], timeout: 60 * 60 * 6)
 
         server.stop()
-    }
-
-    private func resolveRPCToken() throws -> String {
-        let raw = (ProcessInfo.processInfo.environment["PHONEAGENT_RPC_TOKEN"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !raw.isEmpty else {
-            throw NSError(
-                domain: "PhoneAgent",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Missing required env var PHONEAGENT_RPC_TOKEN"]
-            )
-        }
-        return raw
-    }
-
-    @MainActor
-    func runLoop() async throws {
-        for await prompt in appListener.messages {
-            switch prompt {
-            case .apiKey(let apiKey):
-                api = OpenAIService(with: apiKey)
-            case .prompt(let prompt):
-                guard task == nil || task?.isCancelled == false else { continue }
-                task = Task {
-                    do {
-                        try await submit(prompt)
-                    } catch {
-                        print("Error processing prompt: \(error)")
-                    }
-                }
-            }
-        }
     }
 
 

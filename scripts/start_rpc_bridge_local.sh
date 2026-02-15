@@ -4,12 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'USAGE' >&2
 Usage:
-  start_rpc_bridge_local.sh --udid <UDID> --token <TOKEN> [--port <PORT>] [--derived-data <PATH>]
+  start_rpc_bridge_local.sh --udid <UDID>
 
 What this does:
   - Runs the PhoneAgent UI-test RPC server.
   - For physical devices (USB or Xcode "Connect via network"), starts a localhost-only forwarder
-    so you can always connect to 127.0.0.1:<PORT> and the RPC port is not exposed to the LAN.
+    so you can always connect to 127.0.0.1:45678 and the RPC port is not exposed to the LAN.
     It prefers the CoreDevice tunnel (*.coredevice.local) and falls back to USB via usbmux when available.
 
 Requirements (physical device):
@@ -19,20 +19,12 @@ USAGE
 }
 
 UDID=""
-PORT="45678"
-TOKEN=""
-DERIVED_DATA=""
+RPC_PORT="45678"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --udid)
       UDID="${2:-}"; shift 2;;
-    --port)
-      PORT="${2:-}"; shift 2;;
-    --token)
-      TOKEN="${2:-}"; shift 2;;
-    --derived-data)
-      DERIVED_DATA="${2:-}"; shift 2;;
     -h|--help)
       usage; exit 0;;
     *)
@@ -44,12 +36,6 @@ done
 
 if [[ -z "$UDID" ]]; then
   echo "--udid is required" >&2
-  usage
-  exit 2
-fi
-
-if [[ -z "$TOKEN" ]]; then
-  echo "--token is required (PHONEAGENT_RPC_TOKEN is mandatory)" >&2
   usage
   exit 2
 fi
@@ -88,25 +74,37 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 if is_simulator_udid >/dev/null 2>&1; then
-  echo "Simulator detected; use RPC host 127.0.0.1:$PORT (wait for PHONEAGENT_RPC_PORT=... in logs)" >&2
+  echo "Simulator detected; use RPC host 127.0.0.1:$RPC_PORT (wait for PHONEAGENT_RPC_READY ... in logs)" >&2
 else
-  echo "Physical device detected; starting localhost forward: 127.0.0.1:$PORT -> device:$PORT" >&2
+  echo "Physical device detected; starting localhost forward: 127.0.0.1:$RPC_PORT -> device:$RPC_PORT" >&2
   "$PYTHON" "$ROOT_DIR/scripts/forward_rpc_localhost.py" \
-    --udid "$UDID" \
-    --local-port "$PORT" \
-    --device-port "$PORT" &
+    --udid "$UDID" &
   FORWARD_PID="$!"
 
   # Give the forwarder a moment to bind; fail fast if it died (missing deps, port in use, etc).
   sleep 0.2
   kill -0 "$FORWARD_PID" 2>/dev/null || { echo "Port forwarder failed to start." >&2; exit 1; }
 
-  echo "Port forwarder is listening on 127.0.0.1:$PORT (wait for PHONEAGENT_RPC_PORT=... in logs)" >&2
+  echo "Port forwarder is listening on 127.0.0.1:$RPC_PORT (wait for PHONEAGENT_RPC_READY ... in logs)" >&2
 fi
 
-ARGS=(--udid "$UDID" --token "$TOKEN" --port "$PORT")
-if [[ -n "$DERIVED_DATA" ]]; then
-  ARGS+=(--derived-data "$DERIVED_DATA")
+# Start the test-hosted JSON-RPC server via a single UI-test entrypoint.
+XCODEBUILD_CODESIGN_ARGS=()
+if is_simulator_udid >/dev/null 2>&1; then
+  # Simulator builds don't need signing; disabling it avoids requiring a configured signing identity.
+  XCODEBUILD_CODESIGN_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
 fi
 
-"$ROOT_DIR/scripts/start_rpc_bridge.sh" "${ARGS[@]}"
+XCODEBUILD_ARGS=(
+  xcodebuild
+  test
+  -project "$ROOT_DIR/PhoneAgent.xcodeproj"
+  -scheme "PhoneAgent"
+  -destination "id=$UDID"
+  -only-testing:PhoneAgentUITests/PhoneAgent/testMain
+)
+if ((${#XCODEBUILD_CODESIGN_ARGS[@]})); then
+  XCODEBUILD_ARGS+=("${XCODEBUILD_CODESIGN_ARGS[@]}")
+fi
+
+"${XCODEBUILD_ARGS[@]}"

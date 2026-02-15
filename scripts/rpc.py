@@ -5,8 +5,7 @@ PhoneAgent RPC client.
 This talks to the PhoneAgent UI-test JSON-RPC bridge (newline-delimited JSON over TCP).
 
 Typical usage:
-  export PHONEAGENT_RPC_TOKEN="..."
-  ./scripts/rpc.py --host 127.0.0.1 --port 45678 get-tree
+  ./scripts/rpc.py get-tree
   ./scripts/rpc.py open-app com.apple.Preferences
   ./scripts/rpc.py enter-text --coordinate '{{33.0, 861.0}, {364.0, 38.0}}' --text 'Display'
 """
@@ -16,7 +15,6 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import os
 import socket
 import sys
 from typing import Any, Dict, Optional
@@ -32,21 +30,8 @@ DEFAULT_MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
 def eprint(*args: object) -> None:
     print(*args, file=sys.stderr, flush=True)
 
-
-def resolve_token(explicit_token: Optional[str]) -> str:
-    if explicit_token:
-        return explicit_token
-    for k in ("PHONEAGENT_RPC_TOKEN", "TOKEN"):
-        v = os.environ.get(k)
-        if v:
-            return v
-    raise SystemExit("Missing token. Pass --token or set PHONEAGENT_RPC_TOKEN (or TOKEN).")
-
-
-def build_request(req_id: int, method: str, token: str, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def build_request(req_id: int, method: str, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     p: Dict[str, Any] = dict(params or {})
-    # Always enforce the CLI/env token.
-    p["token"] = token
     return {"id": req_id, "method": method, "params": p}
 
 
@@ -135,12 +120,11 @@ def ensure_ok(resp: Dict[str, Any]) -> None:
 
 
 def cmd_call(args: argparse.Namespace) -> int:
-    token = resolve_token(args.token)
     params = parse_params_json(args.params)
-    req = build_request(args.id, args.method, token, params)
+    req = build_request(args.id, args.method, params)
     resp = rpc_call(
         args.host,
-        args.port,
+        DEFAULT_PORT,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -164,11 +148,10 @@ def cmd_call(args: argparse.Namespace) -> int:
 
 
 def _tree_command(args: argparse.Namespace, req_id: int, method: str, params: Optional[Dict[str, Any]] = None) -> int:
-    token = resolve_token(args.token)
-    req = build_request(req_id, method, token, params)
+    req = build_request(req_id, method, params)
     resp = rpc_call(
         args.host,
-        args.port,
+        DEFAULT_PORT,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -189,11 +172,10 @@ def cmd_get_tree(args: argparse.Namespace) -> int:
 
 
 def cmd_get_context(args: argparse.Namespace) -> int:
-    token = resolve_token(args.token)
-    req = build_request(args.id, "get_context", token, {})
+    req = build_request(args.id, "get_context", {})
     resp = rpc_call(
         args.host,
-        args.port,
+        DEFAULT_PORT,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -220,11 +202,10 @@ def cmd_get_context(args: argparse.Namespace) -> int:
 
 
 def cmd_get_screen_image(args: argparse.Namespace) -> int:
-    token = resolve_token(args.token)
-    req = build_request(args.id, "get_screen_image", token, {})
+    req = build_request(args.id, "get_screen_image", {})
     resp = rpc_call(
         args.host,
-        args.port,
+        DEFAULT_PORT,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -302,11 +283,10 @@ def cmd_swipe(args: argparse.Namespace) -> int:
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    token = resolve_token(args.token)
-    req = build_request(args.id, "stop", token, {})
+    req = build_request(args.id, "stop", {})
     resp = rpc_call(
         args.host,
-        args.port,
+        DEFAULT_PORT,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -318,7 +298,6 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_repl(args: argparse.Namespace) -> int:
-    token = resolve_token(args.token)
     req_id = 1
     eprint("PhoneAgent RPC REPL. Enter: <method> [<json_params_object>]. Use 'quit' to exit.")
     while True:
@@ -337,11 +316,11 @@ def cmd_repl(args: argparse.Namespace) -> int:
         if len(parts) == 2:
             params = parse_params_json(parts[1])
 
-        req = build_request(req_id, method, token, params)
+        req = build_request(req_id, method, params)
         try:
             resp = rpc_call(
                 args.host,
-                args.port,
+                DEFAULT_PORT,
                 req,
                 connect_timeout_s=args.connect_timeout,
                 read_timeout_s=args.read_timeout,
@@ -374,8 +353,6 @@ def cmd_repl(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="PhoneAgent JSON-RPC client (newline-delimited JSON over TCP).")
     p.add_argument("--host", default=DEFAULT_HOST)
-    p.add_argument("--port", type=int, default=DEFAULT_PORT)
-    p.add_argument("--token", default=None, help="RPC token. Defaults to env PHONEAGENT_RPC_TOKEN (or TOKEN).")
     p.add_argument("--connect-timeout", type=float, default=DEFAULT_CONNECT_TIMEOUT_S)
     p.add_argument("--read-timeout", type=float, default=DEFAULT_READ_TIMEOUT_S)
     p.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)

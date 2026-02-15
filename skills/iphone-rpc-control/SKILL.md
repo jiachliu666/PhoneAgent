@@ -15,16 +15,11 @@ Use this workflow to drive iOS UI through the PhoneAgent test bridge.
 xcrun xctrace list devices
 ```
 
-2. Start the test-hosted RPC server on a chosen port.
-
-Preferred (reliable env injection via `.xctestrun`):
+2. Start the test-hosted RPC server (listens on port `45678`).
 
 ```bash
-TOKEN="$(uuidgen | tr -d '-')"
 ./scripts/start_rpc_bridge_local.sh \
-  --udid '<DEVICE_UDID>' \
-  --token "$TOKEN" \
-  --port 45678
+  --udid '<DEVICE_UDID>'
 ```
 
 Notes:
@@ -34,11 +29,11 @@ Notes:
   `python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip && ./.venv/bin/python -m pip install pymobiledevice3`
 
 3. Keep this `xcodebuild ...` process running. It is the bridge.
-4. Wait for `PHONEAGENT_RPC_PORT=<port>` in logs before sending RPC calls.
+4. Wait for `PHONEAGENT_RPC_READY ...` in logs before sending RPC calls.
 5. Confirm socket readiness before first RPC:
 
 ```bash
-PHONEAGENT_RPC_TOKEN="$TOKEN" ./scripts/rpc.py get-tree >/dev/null && echo rpc-ready
+./scripts/rpc.py get-tree >/dev/null && echo rpc-ready
 ```
 
 ## Resolve host and port
@@ -49,23 +44,19 @@ PHONEAGENT_RPC_TOKEN="$TOKEN" ./scripts/rpc.py get-tree >/dev/null && echo rpc-r
 xcrun devicectl list devices
 ```
 
-2. Use the port printed by the test runner.
-3. Always use `127.0.0.1` as the RPC host.
+2. Always use `127.0.0.1:45678` as the RPC endpoint.
 
 Notes:
 - The RPC server rejects direct LAN peers; use the localhost forwarder.
 - `start_rpc_bridge_local.sh` sets up a localhost-only forward for physical devices.
 - If you need to forward manually, run:
-  `python3 ./scripts/forward_rpc_localhost.py --udid <UDID> --local-port <PORT> --device-port <PORT>`
+  `python3 ./scripts/forward_rpc_localhost.py --udid <UDID>` (binds `127.0.0.1:45678`)
 
 ## Send RPC calls
 
 Use the helper CLI:
 
 ```bash
-# The helper reads token from PHONEAGENT_RPC_TOKEN (or TOKEN).
-export PHONEAGENT_RPC_TOKEN="$TOKEN"
-
 ./scripts/rpc.py open-app com.apple.Preferences
 ./scripts/rpc.py get-tree | head
 
@@ -115,7 +106,7 @@ All success responses look like:
 
 Example:
 ```json
-{"id":1,"method":"get_tree","params":{"token":"<token>"}}
+{"id":1,"method":"get_tree","params":{}}
 ```
 
 ### `get_screen_image`
@@ -126,7 +117,7 @@ Example:
 
 Example:
 ```json
-{"id":2,"method":"get_screen_image","params":{"token":"<token>"}}
+{"id":2,"method":"get_screen_image","params":{}}
 ```
 
 ### `get_context`
@@ -137,7 +128,7 @@ Example:
 
 Example:
 ```json
-{"id":3,"method":"get_context","params":{"token":"<token>"}}
+{"id":3,"method":"get_context","params":{}}
 ```
 
 ### `open_app`
@@ -148,7 +139,7 @@ Example:
 
 Example:
 ```json
-{"id":4,"method":"open_app","params":{"token":"<token>","bundle_identifier":"com.apple.Preferences"}}
+{"id":4,"method":"open_app","params":{"bundle_identifier":"com.apple.Preferences"}}
 ```
 
 ### `tap`
@@ -159,7 +150,7 @@ Example:
 
 Example:
 ```json
-{"id":5,"method":"tap","params":{"token":"<token>","x":120,"y":300}}
+{"id":5,"method":"tap","params":{"x":120,"y":300}}
 ```
 
 ### `tap_element`
@@ -173,7 +164,7 @@ Example:
 
 Example:
 ```json
-{"id":6,"method":"tap_element","params":{"token":"<token>","coordinate":"{{20.0, 165.0}, {390.0, 90.0}}","count":1,"longPress":false}}
+{"id":6,"method":"tap_element","params":{"coordinate":"{{20.0, 165.0}, {390.0, 90.0}}","count":1,"longPress":false}}
 ```
 
 ### `enter_text`
@@ -186,7 +177,7 @@ Example:
 
 Example:
 ```json
-{"id":7,"method":"enter_text","params":{"token":"<token>","coordinate":"{{33.0, 861.0}, {364.0, 38.0}}","text":"hello"}}
+{"id":7,"method":"enter_text","params":{"coordinate":"{{33.0, 861.0}, {364.0, 38.0}}","text":"hello"}}
 ```
 
 ### `scroll`
@@ -197,7 +188,7 @@ Example:
 
 Example:
 ```json
-{"id":8,"method":"scroll","params":{"token":"<token>","x":215,"y":760,"distanceX":0,"distanceY":-460}}
+{"id":8,"method":"scroll","params":{"x":215,"y":760,"distanceX":0,"distanceY":-460}}
 ```
 
 ### `swipe`
@@ -208,7 +199,7 @@ Example:
 
 Example:
 ```json
-{"id":9,"method":"swipe","params":{"token":"<token>","x":215,"y":760,"direction":"up"}}
+{"id":9,"method":"swipe","params":{"x":215,"y":760,"direction":"up"}}
 ```
 
 ### `stop`
@@ -219,7 +210,7 @@ Example:
 
 Example:
 ```json
-{"id":10,"method":"stop","params":{"token":"<token>"}}
+{"id":10,"method":"stop","params":{}}
 ```
 
 ## iOS app bundle IDs

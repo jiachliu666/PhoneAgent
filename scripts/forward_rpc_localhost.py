@@ -24,6 +24,9 @@ import select
 from typing import Iterable, List, Optional, Tuple
 
 
+RPC_PORT = 45678
+
+
 def eprint(*args: object) -> None:
     print(*args, file=sys.stderr, flush=True)
 
@@ -167,17 +170,15 @@ def handle_client(client: socket.socket, udid: str, device_port: int, timeout: f
 def main() -> None:
     ap = argparse.ArgumentParser(description="Forward localhost TCP to PhoneAgent RPC on iPhone (CoreDevice tunnel or USB).")
     ap.add_argument("--udid", required=True, help="Device UDID or CoreDevice identifier")
-    ap.add_argument("--local-port", required=True, type=int, help="Local port to listen on (binds 127.0.0.1)")
-    ap.add_argument("--device-port", required=True, type=int, help="Device port to connect to")
     ap.add_argument("--connect-timeout", type=float, default=2.0, help="Remote connect timeout (seconds)")
     args = ap.parse_args()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", args.local_port))
+    server.bind(("127.0.0.1", RPC_PORT))
     server.listen(64)
 
-    eprint(f"Forwarding 127.0.0.1:{args.local_port} -> <device>:{args.device_port} (udid={args.udid})")
+    eprint(f"Forwarding 127.0.0.1:{RPC_PORT} -> <device>:{RPC_PORT} (udid={args.udid})")
     eprint("Strategies: CoreDevice tunnel (*.coredevice.local) then usbmux (pymobiledevice3).")
 
     try:
@@ -185,7 +186,7 @@ def main() -> None:
             client, _ = server.accept()
             t = threading.Thread(
                 target=handle_client,
-                args=(client, args.udid, args.device_port, args.connect_timeout),
+                args=(client, args.udid, RPC_PORT, args.connect_timeout),
                 daemon=True,
             )
             t.start()

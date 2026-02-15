@@ -15,7 +15,7 @@ struct ContentView: View {
     }
 
     @State private var state: AppState = KeychainHelper.load().map { .prompt($0) } ?? .enterAPIKey
-    let appToTestStream: AppToTestStream
+    let rpcClient: PhoneAgentRPCClient
 
     var body: some View {
         switch state {
@@ -25,9 +25,11 @@ struct ContentView: View {
                 state = .prompt(key)
             }
         case .prompt(let key):
-            PromptView(appToTestStream: appToTestStream, deleteKey: deleteKey)
+            PromptView(rpcClient: rpcClient, deleteKey: deleteKey)
                 .onAppear {
-                    appToTestStream.send(message: .apiKey(key))
+                    Task {
+                        await rpcClient.setOpenAIAPIKey(key)
+                    }
                 }
         }
     }
@@ -37,5 +39,3 @@ struct ContentView: View {
         state = .enterAPIKey
     }
 }
-
-

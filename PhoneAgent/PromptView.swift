@@ -11,7 +11,7 @@ struct PromptView: View {
     @State var textFieldText = ""
     @State var largeText = ""
     @State private var speechProcessor = SpeechProcessor()
-    let appToTestStream: AppToTestStream
+    let rpcClient: PhoneAgentRPCClient
     @State private var showingSettings = false
     let deleteKey: () -> Void
     @AppStorage("alwaysOn") private var alwaysOn = false
@@ -83,7 +83,9 @@ struct PromptView: View {
         if hasWakeWord {
             q = String(text[text.index(text.startIndex, offsetBy: wakeWord.count)...])
         }
-        appToTestStream.send(message: .prompt(q))
+        Task {
+            await rpcClient.submitPrompt(q)
+        }
     }
 }
 
@@ -110,5 +112,5 @@ struct MicrophoneButton: View {
 }
 
 #Preview {
-    PromptView(appToTestStream: .init(), deleteKey: {})
+    PromptView(rpcClient: .init(), deleteKey: {})
 }
