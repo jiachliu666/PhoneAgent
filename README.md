@@ -11,9 +11,10 @@ The bridge supports both:
 
 ## Demo
 
-- [Self contained app](https://www.youtube.com/shorts/4rnv6dN-2Lg)
-- [OpenClaw](https://youtube.com/shorts/MMAjh1xqsdM?feature=share)
-- [Codex](https://youtu.be/D44AWOQI74I)
+- [Self contained iOS app](https://www.youtube.com/shorts/4rnv6dN-2Lg)
+- [OpenClaw controlling an iPhone](https://youtube.com/shorts/MMAjh1xqsdM?feature=share)
+- [OpenClaw controlling an Android phone](https://www.youtube.com/shorts/gN7ZJtl0byM)
+- [Codex controlling an iPhone](https://youtu.be/D44AWOQI74I)
 
 ## What This Repo Includes
 
