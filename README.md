@@ -27,7 +27,7 @@ Helper CLI: use `./.agents/skills/phoneagent/scripts/rpc.py` to make calls witho
 Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
 
 - Simulator: connect to `127.0.0.1:45678`
-- Physical iPhone (USB or Xcode "Connect via network"): run `./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh ...` and connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+- Physical iPhone (USB or Xcode "Connect via network"): run `./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh`, choose the destination from the interactive numbered list, then connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
 
 For the full RPC method reference and recommended operating loop, see `.agents/skills/phoneagent/SKILL.md`.
 

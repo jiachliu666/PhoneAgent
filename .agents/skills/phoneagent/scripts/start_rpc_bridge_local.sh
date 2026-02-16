@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE' >&2
 Usage:
-  start_rpc_bridge_local.sh --udid <UDID>
+  start_rpc_bridge_local.sh
 
 What this does:
   - Runs the PhoneAgent UI-test RPC server.
@@ -15,16 +15,102 @@ What this does:
 Requirements (physical device):
   - python3
   - (USB only) pip package: pymobiledevice3 (install into repo-root ./.venv)
+
+Interactive selection:
+  - This script is intentionally interactive. It will list iOS devices and simulators
+    and prompt you to pick one by number.
 USAGE
 }
 
 UDID=""
 RPC_PORT="45678"
 
+pick_destination_interactive() {
+  if [[ ! -e /dev/tty ]]; then
+    echo "No TTY available for interactive selection (missing /dev/tty)." >&2
+    exit 1
+  fi
+
+  local raw
+  raw="$(xcrun xctrace list devices 2>/dev/null || true)"
+  if [[ -z "$raw" ]]; then
+    echo "Failed to list devices via: xcrun xctrace list devices" >&2
+    exit 1
+  fi
+
+  local -a labels
+  local -a ids
+  local in_devices=0
+  local in_sims=0
+  local line id label kind
+
+  while IFS= read -r line; do
+    case "$line" in
+      "== Devices ==") in_devices=1; in_sims=0; continue;;
+      "== Simulators ==") in_devices=0; in_sims=1; continue;;
+    esac
+
+    [[ -z "$line" ]] && continue
+    if (( !in_devices && !in_sims )); then
+      continue
+    fi
+
+    # Skip the host Mac entry and any non-iOS-ish entries to avoid invalid destinations.
+    if (( in_devices )) && [[ "$line" == Mac* ]]; then
+      continue
+    fi
+    if [[ "$line" != *iPhone* && "$line" != *iPad* && "$line" != *iPod* && "$line" != *Simulator* ]]; then
+      continue
+    fi
+
+    # xctrace lines can contain multiple (...) groups (e.g. device + OS + id).
+    # Capture the final (...) token as the id and keep the preceding text as display label.
+    line="${line%$'\r'}"
+    if [[ "$line" =~ ^(.*)[[:space:]]\(([^()]*)\)[[:space:]]*$ ]]; then
+      label="${BASH_REMATCH[1]}"
+      id="${BASH_REMATCH[2]}"
+    else
+      continue
+    fi
+    kind="device"
+    if (( in_sims )); then
+      kind="sim"
+    fi
+
+    labels+=("$label [$kind]")
+    ids+=("$id")
+  done <<<"$raw"
+
+  if ((${#ids[@]} == 0)); then
+    echo "No iOS devices/simulators found in: xcrun xctrace list devices" >&2
+    exit 1
+  fi
+
+  echo "Select destination:" >&2
+  local i
+  for i in "${!labels[@]}"; do
+    printf '%d) %s\n' "$((i + 1))" "${labels[$i]}" >&2
+  done
+
+  local choice=""
+  local default_choice="1"
+  while true; do
+    printf 'Enter number (1-%d) [default %s]: ' "${#ids[@]}" "$default_choice" >&2
+    IFS= read -r choice </dev/tty || true
+
+    if [[ -z "$choice" ]]; then
+      choice="$default_choice"
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#ids[@]} )); then
+      UDID="${ids[$((choice - 1))]}"
+      break
+    fi
+  done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --udid)
-      UDID="${2:-}"; shift 2;;
     -h|--help)
       usage; exit 0;;
     *)
@@ -34,11 +120,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$UDID" ]]; then
-  echo "--udid is required" >&2
-  usage
-  exit 2
-fi
+pick_destination_interactive
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"

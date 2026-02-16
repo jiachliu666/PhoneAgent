@@ -15,28 +15,23 @@ cd "$(git rev-parse --show-toplevel)"
 
 ## Start the RPC bridge
 
-1. Find available devices.
+1. Start the test-hosted RPC server (listens on port `45678`).
 
 ```bash
-xcrun xctrace list devices
-```
-
-2. Start the test-hosted RPC server (listens on port `45678`).
-
-```bash
-./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh \
-  --udid '<DEVICE_UDID>'
+./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh
 ```
 
 Notes:
+- `start_rpc_bridge_local.sh` is interactive and will show a numbered list of iOS devices/simulators.
+  Enter the number for the destination you want.
 - `start_rpc_bridge_local.sh` starts a localhost-only forwarder.
 - On Xcode "Connect via network", it uses the CoreDevice tunnel automatically (no extra deps).
 - For USB fallback forwarding, install `pymobiledevice3` into a local venv:
   `python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip && ./.venv/bin/python -m pip install pymobiledevice3`
 
-3. Keep this `xcodebuild ...` process running. It is the bridge.
-4. Wait for `PHONEAGENT_RPC_READY ...` in logs before sending RPC calls.
-5. Confirm socket readiness before first RPC:
+2. Keep this `xcodebuild ...` process running. It is the bridge.
+3. Wait for `PHONEAGENT_RPC_READY ...` in logs before sending RPC calls.
+4. Confirm socket readiness before first RPC:
 
 ```bash
 ./.agents/skills/phoneagent/scripts/rpc.py get-tree >/dev/null && echo rpc-ready
@@ -44,18 +39,12 @@ Notes:
 
 ## Resolve host and port
 
-1. For physical iPhone, find the device UDID:
-
-```bash
-xcrun devicectl list devices
-```
-
-2. Always use `127.0.0.1:45678` as the RPC endpoint.
+1. Always use `127.0.0.1:45678` as the RPC endpoint.
 
 Notes:
 - The RPC server rejects direct LAN peers; use the localhost forwarder.
 - `start_rpc_bridge_local.sh` sets up a localhost-only forward for physical devices.
-- If you need to forward manually, run:
+- If you need to forward manually, first get a device UDID via `xcrun devicectl list devices`, then run:
   `python3 ./.agents/skills/phoneagent/scripts/forward_rpc_localhost.py --udid <UDID>` (binds `127.0.0.1:45678`)
 
 ## Send RPC calls
