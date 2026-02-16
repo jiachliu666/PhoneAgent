@@ -2,7 +2,7 @@
 
 This is an iPhone using Agent that uses OpenAI models to get things done on a phone, spanning across multiple apps, very similar to a human user. It was built during an OpenAI hackathon last year.
 
-PhoneAgent now also exposes a UI-test JSON-RPC bridge so external AI agents can drive your iPhone directly. In practice, this means tools like **Codex** and **OpenClaw** can inspect the iOS accessibility tree, perform actions, and complete multi-step tasks on device.
+PhoneAgent also exposes a UI-test JSON-RPC bridge so external AI agents can drive your iPhone directly. In practice, this means tools like **Codex** and **OpenClaw** can inspect the iOS accessibility tree, perform actions, and complete multi-step tasks on device.
 
 # Demo
 
