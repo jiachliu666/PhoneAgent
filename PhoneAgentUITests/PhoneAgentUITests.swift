@@ -22,6 +22,9 @@ final class PhoneAgent: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        if name.contains("testRPCBridge") {
+            app.launchArguments.append("--phoneagent-rpc-bridge")
+        }
         app.launch()
         self.app = app
         // Needed for notification quick-reply handling when the app-driven agent flow is used.
@@ -42,6 +45,13 @@ final class PhoneAgent: XCTestCase {
 
     @MainActor
     func testMain() async throws {
+        try await runRPCServer()
+    }
+
+    // Entry point used by the phoneagent skill. Keeps the existing `testMain` behavior
+    // for the in-app agent flow, while allowing a different boot UI for bridge-only usage.
+    @MainActor
+    func testRPCBridge() async throws {
         try await runRPCServer()
     }
 

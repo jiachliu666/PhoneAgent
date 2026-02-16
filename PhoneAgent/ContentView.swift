@@ -10,15 +10,26 @@ import Security
 
 struct ContentView: View {
     enum AppState {
+        case rpcBridge
         case enterAPIKey
         case prompt(String)
     }
 
-    @State private var state: AppState = KeychainHelper.load().map { .prompt($0) } ?? .enterAPIKey
+    private static func initialAppState() -> AppState {
+        if ProcessInfo.processInfo.arguments.contains("--phoneagent-rpc-bridge") {
+            .rpcBridge
+        } else {
+            KeychainHelper.load().map { .prompt($0) } ?? .enterAPIKey
+        }
+    }
+
+    @State private var state: AppState = Self.initialAppState()
     let rpcClient: PhoneAgentRPCClient
 
     var body: some View {
         switch state {
+        case .rpcBridge:
+            RPCBridgeModeView()
         case .enterAPIKey:
             EnterAPIKeyView { key in
                 KeychainHelper.save(key: key)

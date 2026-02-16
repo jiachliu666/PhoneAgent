@@ -15,8 +15,10 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import socket
 import sys
+import time
 from typing import Any, Dict, Optional
 
 
@@ -25,6 +27,7 @@ DEFAULT_PORT = 45678
 DEFAULT_CONNECT_TIMEOUT_S = 5.0
 DEFAULT_READ_TIMEOUT_S = 30.0
 DEFAULT_MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
+ARTIFACT_DIR = "/tmp/phoneagent-artifacts"
 
 
 def eprint(*args: object) -> None:
@@ -185,9 +188,12 @@ def cmd_get_context(args: argparse.Namespace) -> int:
     result = resp.get("result")
     if isinstance(result, dict):
         b64 = result.get("screenshot_base64")
-        if args.png_out and isinstance(b64, str):
-            with open(args.png_out, "wb") as f:
+        if isinstance(b64, str):
+            os.makedirs(ARTIFACT_DIR, exist_ok=True)
+            png_out = os.path.join(ARTIFACT_DIR, f"{int(time.time())}_context_{args.id}.png")
+            with open(png_out, "wb") as f:
                 f.write(base64.b64decode(b64))
+            eprint(f"Wrote screenshot: {png_out}")
 
         tree = result.get("tree")
         if isinstance(tree, str):
@@ -222,8 +228,11 @@ def cmd_get_screen_image(args: argparse.Namespace) -> int:
     if not isinstance(b64, str):
         raise SystemExit("RPC response missing result.screenshot_base64")
 
-    with open(args.png_out, "wb") as f:
+    os.makedirs(ARTIFACT_DIR, exist_ok=True)
+    png_out = os.path.join(ARTIFACT_DIR, f"{int(time.time())}_screen_{args.id}.png")
+    with open(png_out, "wb") as f:
         f.write(base64.b64decode(b64))
+    eprint(f"Wrote screenshot: {png_out}")
 
     if args.print_metadata:
         meta = result.get("metadata")
@@ -371,14 +380,12 @@ def build_parser() -> argparse.ArgumentParser:
     get_tree.add_argument("--id", type=int, default=1)
     get_tree.set_defaults(func=cmd_get_tree)
 
-    get_context = sp.add_parser("get-context", help="get_context (prints tree; optionally writes screenshot)")
+    get_context = sp.add_parser("get-context", help="get_context (prints tree; writes screenshot to /tmp/phoneagent-artifacts)")
     get_context.add_argument("--id", type=int, default=1)
-    get_context.add_argument("--png-out", default=None, help="Write screenshot PNG to this path.")
     get_context.set_defaults(func=cmd_get_context)
 
-    get_img = sp.add_parser("get-screen-image", help="get_screen_image (writes screenshot)")
+    get_img = sp.add_parser("get-screen-image", help="get_screen_image (writes screenshot to /tmp/phoneagent-artifacts)")
     get_img.add_argument("--id", type=int, default=1)
-    get_img.add_argument("--png-out", required=True, help="Write screenshot PNG to this path.")
     get_img.add_argument("--print-metadata", action="store_true")
     get_img.set_defaults(func=cmd_get_screen_image)
 

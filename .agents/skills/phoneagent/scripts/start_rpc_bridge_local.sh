@@ -119,7 +119,7 @@ XCODEBUILD_ARGS=(
   -project "$REPO_ROOT/PhoneAgent.xcodeproj"
   -scheme "PhoneAgent"
   -destination "id=$UDID"
-  -only-testing:PhoneAgentUITests/PhoneAgent/testMain
+  -only-testing:PhoneAgentUITests/PhoneAgent/testRPCBridge
 )
 if ((${#XCODEBUILD_CODESIGN_ARGS[@]})); then
   XCODEBUILD_ARGS+=("${XCODEBUILD_CODESIGN_ARGS[@]}")
