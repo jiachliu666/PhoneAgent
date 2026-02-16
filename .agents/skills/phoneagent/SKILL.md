@@ -1,11 +1,11 @@
 ---
 name: phoneagent
-description: Control a connected iPhone or iOS simulator from macOS through PhoneAgent's UI-test JSON-RPC bridge. Use when users ask to automate iOS UI actions, inspect accessibility trees, toggle Settings switches, navigate apps, or capture screenshots by sending RPC methods like get_tree, get_screen_image, get_context, tap_element, enter_text, scroll, swipe, and open_app.
+description: Control a connected iPhone, iOS simulator, Android emulator, or Android device from macOS through PhoneAgent's JSON-RPC bridge. Use when users ask to automate mobile UI actions, inspect accessibility trees, toggle Settings switches, navigate apps, or capture screenshots by sending RPC methods like get_tree, get_screen_image, get_context, tap_element, enter_text, scroll, swipe, and open_app.
 ---
 
 # PhoneAgent
 
-Use this workflow to drive iOS UI through the PhoneAgent test bridge.
+Use this workflow to drive iOS or Android UI through PhoneAgent's JSON-RPC bridge.
 
 All shell commands below assume you are in the repo root:
 
@@ -15,10 +15,14 @@ cd "$(git rev-parse --show-toplevel)"
 
 ## Start the RPC bridge
 
-1. Start the test-hosted RPC server (listens on port `45678`).
+1. Choose a platform bridge (both listen on `127.0.0.1:45678` by default).
 
 ```bash
+# iOS (XCTest-hosted bridge)
 ./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh
+
+# Android (adb bridge; emulator or physical device)
+./.agents/skills/phoneagent/scripts/start_android_rpc_bridge_local.sh
 ```
 
 Notes:
@@ -28,8 +32,9 @@ Notes:
 - On Xcode "Connect via network", it uses the CoreDevice tunnel automatically (no extra deps).
 - For USB fallback forwarding, install `pymobiledevice3` into a local venv:
   `python3 -m venv .venv && ./.venv/bin/python -m pip install -U pip && ./.venv/bin/python -m pip install pymobiledevice3`
+- `start_android_rpc_bridge_local.sh` uses `adb`; if multiple devices are connected it prompts for the serial.
 
-2. Keep this `xcodebuild ...` process running. It is the bridge.
+2. Keep the bridge process running.
 3. Wait for `PHONEAGENT_RPC_READY ...` in logs before sending RPC calls.
 4. Confirm socket readiness before first RPC:
 
@@ -39,11 +44,11 @@ Notes:
 
 ## Resolve host and port
 
-1. Always use `127.0.0.1:45678` as the RPC endpoint.
+1. Always use `127.0.0.1:45678` as the RPC endpoint (or `rpc.py --port <port>` if customized).
 
 Notes:
-- The RPC server rejects direct LAN peers; use the localhost forwarder.
-- `start_rpc_bridge_local.sh` sets up a localhost-only forward for physical devices.
+- Both bridges are localhost-only.
+- iOS physical-device flow uses a localhost forwarder.
 - If you need to forward manually, first get a device UDID via `xcrun devicectl list devices`, then run:
   `python3 ./.agents/skills/phoneagent/scripts/forward_rpc_localhost.py --udid <UDID>` (binds `127.0.0.1:45678`)
 
@@ -52,7 +57,11 @@ Notes:
 Use the helper CLI:
 
 ```bash
+# iOS bundle identifier
 ./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
+
+# Android package name
+./.agents/skills/phoneagent/scripts/rpc.py open-app com.android.settings
 ./.agents/skills/phoneagent/scripts/rpc.py get-tree | head
 
 # Use coordinates copied from the tree (XCUI frame string).
@@ -72,7 +81,7 @@ Use the helper CLI:
 4. Use the returned `tree` from the action response to verify the UI changed as expected.
 5. Repeat until complete.
 6. When the task is complete, always capture a screenshot for the user:
-   - Prefer `get_context` and write `result.screenshot_base64` to a PNG (or use `./.agents/skills/phoneagent/scripts/rpc.py get-screen-image --png-out <path>`).
+   - Prefer `get_context` and write `result.screenshot_base64` to a PNG (or use `./.agents/skills/phoneagent/scripts/rpc.py get-screen-image`, which writes PNG files to `/tmp/phoneagent-artifacts`).
    - Include the PNG path in your final message so the user can open it.
 
 Use `swipe` to reveal off-screen content, then use the returned `tree` (or call `get_tree` if needed).
@@ -129,8 +138,10 @@ Example:
 ### `open_app`
 
 - Does: Brings the specified app to the foreground (and makes it the focused app for subsequent calls).
-- Params: `bundle_identifier` (string, required). Example: `com.apple.Preferences`.
-- Returns: `{"bundle_identifier":"<string>", "tree":"<string>"}`
+- Params: `bundle_identifier` (string, required).
+  - iOS: pass bundle identifier (example `com.apple.Preferences`).
+  - Android: pass package name (example `com.android.settings`).
+- Returns: `{"bundle_identifier":"<string>", "tree":"<string>"}` (Android also includes `package_name`).
 
 Example:
 ```json
@@ -216,11 +227,20 @@ Example:
 - Messages: `com.apple.MobileSMS`
 - Home Screen: `com.apple.springboard`
 
+## Android package names
+
+- Settings: `com.android.settings`
+- Camera (AOSP): `com.android.camera2`
+- Photos (Google): `com.google.android.apps.photos`
+- Messages (Google): `com.google.android.apps.messaging`
+- Home Screen: launcher package varies by emulator/device
+
 ## Recovery playbook
 
 1. If RPC hangs after `open_app`, restart the test-hosted server and retry with a known-good bundle id.
 2. If taps fail due stale UI, call `get_tree` again and recalculate target.
-3. If server becomes unresponsive, stop/restart `xcodebuild test` and resume from latest verified app state.
+3. If iOS bridge becomes unresponsive, stop/restart `xcodebuild test` and resume from latest verified app state.
+4. If Android bridge becomes unresponsive, restart `adb` (`adb kill-server && adb start-server`), relaunch the bridge, and retry.
 
 ## End session
 

@@ -127,7 +127,7 @@ def cmd_call(args: argparse.Namespace) -> int:
     req = build_request(args.id, args.method, params)
     resp = rpc_call(
         args.host,
-        DEFAULT_PORT,
+        args.port,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -154,7 +154,7 @@ def _tree_command(args: argparse.Namespace, req_id: int, method: str, params: Op
     req = build_request(req_id, method, params)
     resp = rpc_call(
         args.host,
-        DEFAULT_PORT,
+        args.port,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -178,7 +178,7 @@ def cmd_get_context(args: argparse.Namespace) -> int:
     req = build_request(args.id, "get_context", {})
     resp = rpc_call(
         args.host,
-        DEFAULT_PORT,
+        args.port,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -211,7 +211,7 @@ def cmd_get_screen_image(args: argparse.Namespace) -> int:
     req = build_request(args.id, "get_screen_image", {})
     resp = rpc_call(
         args.host,
-        DEFAULT_PORT,
+        args.port,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -247,7 +247,7 @@ def cmd_open_app(args: argparse.Namespace) -> int:
         args,
         req_id=args.id,
         method="open_app",
-        params={"bundle_identifier": args.bundle_identifier},
+        params={"bundle_identifier": args.app_identifier},
     )
 
 
@@ -295,7 +295,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     req = build_request(args.id, "stop", {})
     resp = rpc_call(
         args.host,
-        DEFAULT_PORT,
+        args.port,
         req,
         connect_timeout_s=args.connect_timeout,
         read_timeout_s=args.read_timeout,
@@ -329,7 +329,7 @@ def cmd_repl(args: argparse.Namespace) -> int:
         try:
             resp = rpc_call(
                 args.host,
-                DEFAULT_PORT,
+                args.port,
                 req,
                 connect_timeout_s=args.connect_timeout,
                 read_timeout_s=args.read_timeout,
@@ -362,6 +362,7 @@ def cmd_repl(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="PhoneAgent JSON-RPC client (newline-delimited JSON over TCP).")
     p.add_argument("--host", default=DEFAULT_HOST)
+    p.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"RPC port (default: {DEFAULT_PORT})")
     p.add_argument("--connect-timeout", type=float, default=DEFAULT_CONNECT_TIMEOUT_S)
     p.add_argument("--read-timeout", type=float, default=DEFAULT_READ_TIMEOUT_S)
     p.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
@@ -389,8 +390,8 @@ def build_parser() -> argparse.ArgumentParser:
     get_img.add_argument("--print-metadata", action="store_true")
     get_img.set_defaults(func=cmd_get_screen_image)
 
-    open_app = sp.add_parser("open-app", help="open_app <bundle_identifier> (prints tree)")
-    open_app.add_argument("bundle_identifier")
+    open_app = sp.add_parser("open-app", help="open_app <app_identifier> (iOS bundle id or Android package name; prints tree)")
+    open_app.add_argument("app_identifier")
     open_app.add_argument("--id", type=int, default=1)
     open_app.set_defaults(func=cmd_open_app)
 

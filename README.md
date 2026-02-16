@@ -1,79 +1,167 @@
 # PhoneAgent
 
-This is an iPhone using Agent that uses OpenAI models to get things done on a phone, spanning across multiple apps, very similar to a human user. It was built during an OpenAI hackathon last year.
+PhoneAgent is an experimental mobile automation project with two operating modes:
 
-PhoneAgent also exposes a UI-test JSON-RPC bridge so external AI agents can drive your iPhone directly. In practice, this means tools like **Codex** and **OpenClaw** can inspect the iOS accessibility tree, perform actions, and complete multi-step tasks on device.
+1. **In-app iPhone agent** (SwiftUI app + XCTest runner + OpenAI Responses API)
+2. **External bridge** to let Codex/OpenClaw control iOS/Android devices
 
-# Demo
+The bridge supports both:
+- **iOS** (XCTest-hosted actions against simulator or physical iPhone)
+- **Android** (adb + UiAutomator + input/screencap actions against emulator or device)
+
+## Demo
 
 - [Self contained app](https://www.youtube.com/shorts/4rnv6dN-2Lg)
 - [OpenClaw](https://youtube.com/shorts/MMAjh1xqsdM?feature=share)
 - [Codex](https://youtu.be/D44AWOQI74I)
 
-# What you can do
-Example prompts:
-- Click a new selfie and send it to {Contact name} with a haiku about the weekend
-- Download {app name} from the App Store
-- Send a message to {Contact name}: my flight is DL 1715 and Call an Uber X to SFO
-- Open Control Center and enable the torch
+## What This Repo Includes
 
-# RPC Bridge
+- **iOS app UI**: API key entry, prompt input, microphone support, settings, always-on wake-word mode
+- **iOS test-hosted RPC server**: newline-delimited JSON-RPC on port `45678`
+- **Android RPC server**: localhost JSON-RPC bridge backed by `adb` commands
+- **Helper scripts**:
+  - iOS bridge launcher + physical-device localhost forwarding
+  - Android bridge launcher (with adb auto-discovery)
+  - generic RPC CLI (`rpc.py`) for both platforms
 
-PhoneAgent can run in **bridge mode** so external agents can control iOS through a newline-delimited JSON-RPC interface.
+## Capabilities
 
-## Use from Codex / OpenClaw
+### Shared RPC action surface (iOS + Android)
 
-Have your agent use the PhoneAgent skill in this repo: [`.agents/skills/phoneagent/`](./.agents/skills/phoneagent/).
+- `get_tree`
+- `get_screen_image`
+- `get_context`
+- `set_api_key`
+- `open_app`
+- `tap`
+- `tap_element`
+- `enter_text`
+- `scroll`
+- `swipe`
+- `stop`
 
-That skill contains the end-to-end setup and operating workflow for Codex/OpenClaw, including bridge startup, localhost forwarding, RPC methods, and screenshot capture guidance.
+### iOS-only RPC method
 
-You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `.agents/skills/phoneagent/SKILL.md` for a full workflow.
+- `submit_prompt`
 
-Helper CLI: use `./.agents/skills/phoneagent/scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
+`submit_prompt` powers the in-app iPhone agent loop.
+
+### In-app iPhone agent features
+
+- OpenAI API key stored in Keychain
+- Prompt submission from keyboard or microphone
+- Optional always-on mode with custom wake word
+- Notification completion + quick-reply follow-up loop
+
+## Requirements
+
+### macOS host
+
+- Xcode (for iOS app/UITest bridge)
+- Python 3
+- Android SDK tools (`adb`) for Android bridge
+
+### Devices
+
+- iOS simulator or physical iPhone (Developer setup)
+- Android emulator or physical Android device (USB debugging or wireless debugging)
+
+## Quick Start (In-App iPhone Agent)
+
+1. Open `/Users/rounak/Developer/PhoneAgent-cli/PhoneAgent.xcodeproj` in Xcode.
+2. Run the `PhoneAgent` scheme on an iPhone/simulator.
+3. Enter OpenAI API key when prompted.
+4. Submit tasks via keyboard or microphone.
+
+## Quick Start (AI Agents)
+
+For Codex/OpenClaw usage, use the skill docs:
+- [`.agents/skills/phoneagent/`](./.agents/skills/phoneagent/)
+
+### Send RPC calls
 
 ```bash
+# iOS bundle identifier example
 ./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
-./.agents/skills/phoneagent/scripts/rpc.py get-tree | head
+
+# Android package example
+./.agents/skills/phoneagent/scripts/rpc.py open-app com.android.settings
+
+# Fetch tree
+./.agents/skills/phoneagent/scripts/rpc.py get-tree
+
+# Capture screenshot (writes PNG under /tmp/phoneagent-artifacts)
+./.agents/skills/phoneagent/scripts/rpc.py get-screen-image --print-metadata
 ```
 
-Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
+The CLI supports `--host` and `--port` if you need non-default endpoint settings.
 
-- Simulator: connect to `127.0.0.1:45678`
-- Physical iPhone (USB or Xcode "Connect via network"): run `./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh`, choose the destination from the interactive numbered list, then connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+## RPC Notes
 
-For the full RPC method reference and recommended operating loop, see `.agents/skills/phoneagent/SKILL.md`.
+- Transport: newline-delimited JSON-RPC objects
+- Endpoint: `127.0.0.1:45678` by default
+- `open_app` request parameter is `bundle_identifier`:
+  - iOS: pass bundle identifier (e.g. `com.apple.Preferences`)
+  - Android: pass package name (e.g. `com.android.settings`)
+- `tap_element` / `enter_text` use coordinate rectangles in format `{{x, y}, {w, h}}`
 
-# Features
+## Common App Identifiers
 
-- The model can see an app's accessibilty tree
-- It can tap, swipe, scroll, type and open apps
-- You can follow up on a task by replying to the completion notification
-- You can talk to the agent using the microphone button
-- There is an optional Always On mode that listens for prompts starting with a wake word (Agent by default) even when the app is backgroundded. So you can say something like "Agent, open Settings"
-- The app persists your OpenAI API key securely on your device's keychain
+### iOS
 
-# How it works
+- Settings: `com.apple.Preferences`
+- Camera: `com.apple.camera`
+- Photos: `com.apple.mobileslideshow`
+- Messages: `com.apple.MobileSMS`
+- Home Screen: `com.apple.springboard`
 
-iOS apps are sandboxed, so this project uses Xcode's UI testing harness to inspect and interact with apps and the system. (no jailbreak required).
+## Wireless Android (No USB)
 
-The agent is powered by OpenAI's gpt-4.1 model. It is surprisingly good at using the iPhone just with the accessibility contents of an app. It access to these tools:
+```bash
+# Pair (from Wireless debugging screen)
+adb pair <PHONE_IP:PAIRING_PORT>
 
-- getting the contents of the current app
-- tapping on a UI element
-- typing in a text field
-- opening an app
+# Connect (from Wireless debugging screen)
+adb connect <PHONE_IP:ADB_PORT>
 
-The host app communicates with the UI test runner via the same newline-delimited JSON RPC bridge (loopback), sending `set_api_key` and `submit_prompt`.
+# Verify
+adb devices -l
+```
 
-# Limitations
-- Keyboard input can be improved
-- Capturing the view hierarchy while an animation is inflight confuses the model
-- The model doesn't wait for long running tasks to complete, so it might give up prematurely.
-- The model doesn't see an image representation of the screen yet, but it's possible to do it via XCTest APIs.
+Then start Android bridge with that network serial:
 
-# Disclaimer
-- This is experimental software
-- This is a personal project
-- Recommend running this in an isolated environment
-- The app contents are sent to OpenAI's API
-- The model can get things wrong sometimes
+```bash
+./.agents/skills/phoneagent/scripts/start_android_rpc_bridge_local.sh --serial <PHONE_IP:ADB_PORT>
+```
+
+## Security Model
+
+- RPC bridge is localhost-oriented (`127.0.0.1`)
+- iOS physical-device workflow uses localhost forwarding
+- Android bridge executes only through selected `adb` serial
+- In-app API key is stored in iOS Keychain
+
+## Repository Pointers
+
+- iOS app entry: `PhoneAgent/PhoneAgentApp.swift`
+- iOS app UI/state: `PhoneAgent/ContentView.swift`, `PhoneAgent/PromptView.swift`, `PhoneAgent/SettingsView.swift`
+- iOS bridge server: `PhoneAgentUITests/SimulatorRPCServer.swift`, `PhoneAgentUITests/PhoneAgent.swift`
+- RPC CLI: `.agents/skills/phoneagent/scripts/rpc.py`
+- iOS bridge launcher: `.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh`
+- Android bridge launcher: `.agents/skills/phoneagent/scripts/start_android_rpc_bridge_local.sh`
+- Android bridge server: `.agents/skills/phoneagent/scripts/android_rpc_bridge.py`
+
+## Known Limitations
+
+- Android bridge does **not** yet implement `submit_prompt` agent loop
+- UI tree snapshots can be noisy/stale during animations
+- Keyboard/text reliability can vary by app and platform
+- Long-running tasks may require explicit polling/retries
+
+## Disclaimer
+
+- Experimental software
+- Personal project
+- App contents may be sent to OpenAI API when using agent flow
+- Model/tool actions can be incorrect; verify important operations
