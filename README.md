@@ -2,6 +2,8 @@
 
 This is an iPhone using Agent that uses OpenAI models to get things done on a phone, spanning across multiple apps, very similar to a human user. It was built during an OpenAI hackathon last year.
 
+PhoneAgent also exposes a UI-test JSON-RPC bridge so external AI agents can drive your iPhone directly. In practice, this means tools like **Codex** and **OpenClaw** can inspect the iOS accessibility tree, perform actions, and complete multi-step tasks on device.
+
 # Demo
 
 [![image](https://github.com/user-attachments/assets/a25cc506-47a0-4fae-93c4-cf890b236c13)](https://www.youtube.com/shorts/4rnv6dN-2Lg)
@@ -14,6 +16,14 @@ Example prompts:
 - Open Control Center and enable the torch
 
 # RPC Bridge
+
+PhoneAgent can run in **bridge mode** so external agents can control iOS through a newline-delimited JSON-RPC interface.
+
+## Use from Codex / OpenClaw
+
+Have your agent use the PhoneAgent skill in this repo: [`.agents/skills/phoneagent/`](./.agents/skills/phoneagent/).
+
+That skill contains the end-to-end setup and operating workflow for Codex/OpenClaw, including bridge startup, localhost forwarding, RPC methods, and screenshot capture guidance.
 
 You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `.agents/skills/phoneagent/SKILL.md` for a full workflow.
 
