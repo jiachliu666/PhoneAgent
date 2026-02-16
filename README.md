@@ -13,12 +13,23 @@ Example prompts:
 - Send a message to {Contact name}: my flight is DL 1715 and Call an Uber X to SFO
 - Open Control Center and enable the torch
 
-# How to run
+# RPC Bridge
 
-- Clone the repo
-- Open the Xcode project
-- Open PhoneAgentUITests.swift and run the testLoop function
-- Paste your OpenAI API key, and input your command (text or voice)
+You can drive iOS UI via the UI-test JSON-RPC bridge (newline-delimited JSON). See `.agents/skills/phoneagent/SKILL.md` for a full workflow.
+
+Helper CLI: use `./.agents/skills/phoneagent/scripts/rpc.py` to make calls without hand-writing JSON / `nc`:
+
+```bash
+./.agents/skills/phoneagent/scripts/rpc.py open-app com.apple.Preferences
+./.agents/skills/phoneagent/scripts/rpc.py get-tree | head
+```
+
+Security: the RPC server rejects direct LAN peers; use a localhost-only tunnel/port-forward:
+
+- Simulator: connect to `127.0.0.1:45678`
+- Physical iPhone (USB or Xcode "Connect via network"): run `./.agents/skills/phoneagent/scripts/start_rpc_bridge_local.sh`, choose the destination from the interactive numbered list, then connect to `127.0.0.1:45678` (the script starts a localhost-only forwarder that prefers the CoreDevice tunnel and falls back to USB via usbmux; `pymobiledevice3` is only required for the USB fallback).
+
+For the full RPC method reference and recommended operating loop, see `.agents/skills/phoneagent/SKILL.md`.
 
 # Features
 
@@ -40,7 +51,7 @@ The agent is powered by OpenAI's gpt-4.1 model. It is surprisingly good at using
 - typing in a text field
 - opening an app
 
-The host app communicates with the UI test via a TCP Server to trigger prompts.
+The host app communicates with the UI test runner via the same newline-delimited JSON RPC bridge (loopback), sending `set_api_key` and `submit_prompt`.
 
 # Limitations
 - Keyboard input can be improved
@@ -54,4 +65,3 @@ The host app communicates with the UI test via a TCP Server to trigger prompts.
 - Recommend running this in an isolated environment
 - The app contents are sent to OpenAI's API
 - The model can get things wrong sometimes
-

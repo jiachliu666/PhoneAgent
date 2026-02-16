@@ -5,44 +5,82 @@
 //  Created by Rounak Jain on 5/30/25.
 //
 
+import Darwin
+import Foundation
+import UserNotifications
 import XCTest
 
 final class PhoneAgent: XCTestCase {
-    let appListener = AppStreamListener()
     var task: Task<Void, Never>?
 
     var api: OpenAIService?
     let notificationCenter = UNUserNotificationCenter.current()
     var lastRequest: OpenAIRequest?
     var app: XCUIApplication?
+    private var rpcServer: SimulatorRPCServer?
 
     override func setUpWithError() throws {
-        continueAfterFailure = true
-        appListener.start()
+        continueAfterFailure = false
         let app = XCUIApplication()
+        if name.contains("testRPCBridge") {
+            app.launchArguments.append("--phoneagent-rpc-bridge")
+        }
         app.launch()
-        notificationCenter.requestNotificationPermission()
-
+        self.app = app
+        // Needed for notification quick-reply handling when the app-driven agent flow is used.
         notificationCenter.delegate = self
     }
 
+    override func tearDownWithError() throws {
+        task?.cancel()
+        task = nil
+
+        api = nil
+        lastRequest = nil
+
+        rpcServer?.stop()
+        rpcServer = nil
+        app = nil
+    }
+
     @MainActor
-    func testLoop() async throws {
-        for await prompt in appListener.messages {
-            switch prompt {
-            case .apiKey(let apiKey):
-                api = OpenAIService(with: apiKey)
-            case .prompt(let prompt):
-                guard task == nil || task?.isCancelled == false else { continue }
-                task = Task {
-                    do {
-                        try await submit(prompt)
-                    } catch {
-                        print("Error processing prompt: \(error)")
-                    }
+    func testMain() async throws {
+        try await runRPCServer()
+    }
+
+    // Entry point used by the phoneagent skill. Keeps the existing `testMain` behavior
+    // for the in-app agent flow, while allowing a different boot UI for bridge-only usage.
+    @MainActor
+    func testRPCBridge() async throws {
+        try await runRPCServer()
+    }
+
+    @MainActor
+    private func runRPCServer() async throws {
+        let stopExpectation = expectation(description: "stop rpc server")
+
+        let server = try SimulatorRPCServer(
+            onReady: { port in
+                print("PHONEAGENT_RPC_READY port=\(port)")
+                fflush(stdout)
+            },
+            onStop: {
+                stopExpectation.fulfill()
+            },
+            commandHandler: { [weak self] method, parameters in
+                guard let self else { throw PhoneAgent.Error.serverShutDown }
+                return try await MainActor.run {
+                    try self.handleRPC(method: method, parameters: parameters)
                 }
             }
-        }
+        )
+
+        rpcServer = server
+        server.start()
+
+        await fulfillment(of: [stopExpectation], timeout: 60 * 60 * 6)
+
+        server.stop()
     }
 
 
@@ -91,7 +129,7 @@ final class PhoneAgent: XCTestCase {
               "role": "assistant"
             }
           ],
-          "previous_response_id": "resp_683b49b0916c819b9db77fc68c0ed429016e90871fbf8114",
+          "previous_response_id": "resp_683b49b0916c819b9db77fc68c0ed429016e90871fbf8114"
         }
         """
         let response = try JSONDecoder.shared.decode(Response.self, from: .init(rawResponse.utf8))

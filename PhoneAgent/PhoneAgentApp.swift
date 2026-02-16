@@ -9,13 +9,10 @@ import SwiftUI
 
 @main
 struct PhoneAgentApp: App {
-    let appToTestStream = AppToTestStream()
+    let rpcClient = PhoneAgentRPCClient()
     var body: some Scene {
         WindowGroup {
-            ContentView(appToTestStream: appToTestStream)
-                .onAppear {
-                    appToTestStream.connect()
-                }
+            ContentView(rpcClient: rpcClient)
         }
     }
 }
