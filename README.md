@@ -6,7 +6,9 @@ PhoneAgent also exposes a UI-test JSON-RPC bridge so external AI agents can driv
 
 # Demo
 
-[![image](https://github.com/user-attachments/assets/a25cc506-47a0-4fae-93c4-cf890b236c13)](https://www.youtube.com/shorts/4rnv6dN-2Lg)
+- [Self contained app](https://www.youtube.com/shorts/4rnv6dN-2Lg)
+- [OpenClaw](https://youtube.com/shorts/MMAjh1xqsdM?feature=share)
+- [Codex](https://youtu.be/D44AWOQI74I)
 
 # What you can do
 Example prompts:
