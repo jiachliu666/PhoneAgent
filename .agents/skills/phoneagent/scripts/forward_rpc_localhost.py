@@ -54,7 +54,9 @@ def _devicectl_potential_hostnames(udid: str, timeout: float = 8.0) -> List[str]
     # devicectl only supports JSON to a file.
     out_path = None
     try:
-        fd, out_path = tempfile.mkstemp(prefix="phoneagent_devicectl_devices_", suffix=".json")
+        fd, out_path = tempfile.mkstemp(
+            prefix="phoneagent_devicectl_devices_", suffix=".json"
+        )
         os.close(fd)
         # devicectl rejects timeout < 5 seconds (Xcode 16+).
         timeout_s = max(5, int(timeout))
@@ -68,19 +70,27 @@ def _devicectl_potential_hostnames(udid: str, timeout: float = 8.0) -> List[str]
             "--json-output",
             out_path,
         ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+        )
         with open(out_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         devices = (data.get("result") or {}).get("devices") or []
         udid_l = udid.lower()
         for dev in devices:
             identifier = str(dev.get("identifier") or "").lower()
-            hw_udid = str(((dev.get("hardwareProperties") or {}).get("udid")) or "").lower()
-            hostnames = ((dev.get("connectionProperties") or {}).get("potentialHostnames")) or []
+            hw_udid = str(
+                ((dev.get("hardwareProperties") or {}).get("udid")) or ""
+            ).lower()
+            hostnames = (
+                (dev.get("connectionProperties") or {}).get("potentialHostnames")
+            ) or []
             hostnames_l = [str(h).lower() for h in hostnames]
 
             if udid_l in (identifier, hw_udid) or any(udid_l in h for h in hostnames_l):
-                return [str(h) for h in hostnames if str(h).endswith(".coredevice.local")]
+                return [
+                    str(h) for h in hostnames if str(h).endswith(".coredevice.local")
+                ]
     except Exception:
         return []
     finally:
@@ -116,7 +126,9 @@ def _try_connect(host: str, port: int, timeout: float) -> Optional[socket.socket
         return None
 
 
-def connect_remote(udid: str, device_port: int, timeout: float) -> Tuple[Optional[socket.socket], str]:
+def connect_remote(
+    udid: str, device_port: int, timeout: float
+) -> Tuple[Optional[socket.socket], str]:
     # 1) Prefer CoreDevice tunnel if available.
     for host in _coredevice_candidates(udid):
         s = _try_connect(host, device_port, timeout)
@@ -167,7 +179,9 @@ def pump(a: socket.socket, b: socket.socket) -> None:
             pass
 
 
-def handle_client(client: socket.socket, udid: str, device_port: int, timeout: float) -> None:
+def handle_client(
+    client: socket.socket, udid: str, device_port: int, timeout: float
+) -> None:
     remote, via = connect_remote(udid, device_port, timeout)
     if remote is None:
         eprint(f"[forward] drop: unable to connect to device:{device_port} ({via})")
@@ -182,10 +196,22 @@ def handle_client(client: socket.socket, udid: str, device_port: int, timeout: f
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Forward localhost TCP to PhoneAgent RPC on iPhone (CoreDevice tunnel or USB).")
-    ap.add_argument("--udid", required=True, help="Device UDID or CoreDevice identifier")
-    ap.add_argument("--connect-timeout", type=float, default=2.0, help="Remote connect timeout (seconds)")
-    ap.add_argument("--pid-file", help="Optional pid file used by the launcher to clean up stale forwarders")
+    ap = argparse.ArgumentParser(
+        description="Forward localhost TCP to PhoneAgent RPC on iPhone (CoreDevice tunnel or USB)."
+    )
+    ap.add_argument(
+        "--udid", required=True, help="Device UDID or CoreDevice identifier"
+    )
+    ap.add_argument(
+        "--connect-timeout",
+        type=float,
+        default=2.0,
+        help="Remote connect timeout (seconds)",
+    )
+    ap.add_argument(
+        "--pid-file",
+        help="Optional pid file used by the launcher to clean up stale forwarders",
+    )
     args = ap.parse_args()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -206,7 +232,9 @@ def main() -> None:
     write_pid_file(args.pid_file)
 
     eprint(f"Forwarding 127.0.0.1:{RPC_PORT} -> <device>:{RPC_PORT} (udid={args.udid})")
-    eprint("Strategies: CoreDevice tunnel (*.coredevice.local) then usbmux (pymobiledevice3).")
+    eprint(
+        "Strategies: CoreDevice tunnel (*.coredevice.local) then usbmux (pymobiledevice3)."
+    )
 
     try:
         while True:
