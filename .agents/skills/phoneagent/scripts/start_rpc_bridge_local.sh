@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  exec /usr/bin/env bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 usage() {
@@ -141,6 +146,42 @@ if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
 fi
 
+FORWARD_PID_FILE="$REPO_ROOT/.phoneagent_rpc_forwarder.pid"
+
+cleanup_stale_forwarder() {
+  if [[ ! -f "$FORWARD_PID_FILE" ]]; then
+    return
+  fi
+
+  local existing_pid
+  existing_pid="$(tr -d '[:space:]' < "$FORWARD_PID_FILE" 2>/dev/null || true)"
+  if [[ -z "$existing_pid" ]]; then
+    rm -f "$FORWARD_PID_FILE"
+    return
+  fi
+
+  if ! kill -0 "$existing_pid" 2>/dev/null; then
+    rm -f "$FORWARD_PID_FILE"
+    return
+  fi
+
+  echo "Stopping stale localhost forwarder (pid $existing_pid)." >&2
+  kill "$existing_pid" 2>/dev/null || true
+
+  local waited=0
+  while kill -0 "$existing_pid" 2>/dev/null; do
+    if (( waited >= 30 )); then
+      echo "Stale forwarder did not exit cleanly; killing it." >&2
+      kill -9 "$existing_pid" 2>/dev/null || true
+      break
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+
+  rm -f "$FORWARD_PID_FILE"
+}
+
 is_simulator_udid() {
   "$PYTHON" - "$UDID" <<'PY'
 import json
@@ -173,11 +214,15 @@ if is_simulator_udid >/dev/null 2>&1; then
   IS_SIMULATOR=1
 fi
 
+XCODEBUILD_PROVISIONING_ARGS=()
 if ((IS_SIMULATOR)); then
   echo "Simulator detected; use RPC host 127.0.0.1:$RPC_PORT (wait for PHONEAGENT_RPC_READY ... in logs)" >&2
 else
   echo "Physical device detected; starting localhost forward: 127.0.0.1:$RPC_PORT -> device:$RPC_PORT" >&2
+  cleanup_stale_forwarder
+  XCODEBUILD_PROVISIONING_ARGS=(-allowProvisioningUpdates)
   "$PYTHON" "$SCRIPT_DIR/forward_rpc_localhost.py" \
+    --pid-file "$FORWARD_PID_FILE" \
     --udid "$UDID" &
   FORWARD_PID="$!"
 
@@ -203,6 +248,9 @@ XCODEBUILD_ARGS=(
   -destination "id=$UDID"
   -only-testing:PhoneAgentUITests/PhoneAgent/testRPCBridge
 )
+if ((${#XCODEBUILD_PROVISIONING_ARGS[@]})); then
+  XCODEBUILD_ARGS+=("${XCODEBUILD_PROVISIONING_ARGS[@]}")
+fi
 if ((${#XCODEBUILD_CODESIGN_ARGS[@]})); then
   XCODEBUILD_ARGS+=("${XCODEBUILD_CODESIGN_ARGS[@]}")
 fi

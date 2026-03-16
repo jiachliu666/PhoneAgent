@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import errno
 import socket
 import subprocess
 import sys
@@ -29,6 +30,24 @@ RPC_PORT = 45678
 
 def eprint(*args: object) -> None:
     print(*args, file=sys.stderr, flush=True)
+
+
+def write_pid_file(pid_file: Optional[str]) -> None:
+    if not pid_file:
+        return
+    with open(pid_file, "w", encoding="utf-8") as f:
+        f.write(f"{os.getpid()}\n")
+
+
+def remove_pid_file(pid_file: Optional[str]) -> None:
+    if not pid_file:
+        return
+    try:
+        os.unlink(pid_file)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
 
 
 def _devicectl_potential_hostnames(udid: str, timeout: float = 8.0) -> List[str]:
@@ -166,12 +185,25 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Forward localhost TCP to PhoneAgent RPC on iPhone (CoreDevice tunnel or USB).")
     ap.add_argument("--udid", required=True, help="Device UDID or CoreDevice identifier")
     ap.add_argument("--connect-timeout", type=float, default=2.0, help="Remote connect timeout (seconds)")
+    ap.add_argument("--pid-file", help="Optional pid file used by the launcher to clean up stale forwarders")
     args = ap.parse_args()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", RPC_PORT))
+    try:
+        server.bind(("127.0.0.1", RPC_PORT))
+    except OSError as exc:
+        server.close()
+        remove_pid_file(args.pid_file)
+        if exc.errno == errno.EADDRINUSE:
+            eprint(
+                f"[forward] localhost port 127.0.0.1:{RPC_PORT} is already in use. "
+                "If a previous bridge run was interrupted, rerun the launcher so it can clean up the stale forwarder."
+            )
+            raise SystemExit(1)
+        raise
     server.listen(64)
+    write_pid_file(args.pid_file)
 
     eprint(f"Forwarding 127.0.0.1:{RPC_PORT} -> <device>:{RPC_PORT} (udid={args.udid})")
     eprint("Strategies: CoreDevice tunnel (*.coredevice.local) then usbmux (pymobiledevice3).")
@@ -188,6 +220,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        remove_pid_file(args.pid_file)
         try:
             server.close()
         except OSError:
